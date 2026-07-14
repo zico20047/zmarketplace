@@ -50,15 +50,45 @@ async function doSearch(query: string, ctx: Ctx, limit = 50): Promise<void> {
   await browseResults(results, ctx);
 }
 
+const PAGE_SIZE = 50;
+
 async function browseResults(results: PackageResult[], ctx: Ctx): Promise<void> {
-  const options = results.map((r, i) => ({ label: formatResultOption(r, i).label, description: r.installCommand ?? "" }));
-  options.push({ label: "↩ Done", description: "" });
-  const selected = await ctx.ui.select(`zmarketplace: ${results.length} results`, options);
-  if (!selected || selected === "↩ Done") return;
-  const match = selected.match(/\[(\d+)\]/);
-  if (!match) return;
-  const pkg = results[parseInt(match[1], 10) - 1];
-  if (pkg) await packageDetail(pkg, ctx);
+  let pageStart = 0;
+  while (true) {
+    const pageEnd = Math.min(pageStart + PAGE_SIZE, results.length);
+    const page = results.slice(pageStart, pageEnd);
+
+    const options = page.map((r, i) => {
+      const globalIdx = pageStart + i;
+      return { label: formatResultOption(r, globalIdx).label, description: r.installCommand ?? "" };
+    });
+
+    // Pagination controls
+    if (pageStart > 0) {
+      const prevStart = Math.max(0, pageStart - PAGE_SIZE) + 1;
+      const prevEnd = pageStart;
+      options.push({ label: `← Previous (${prevStart}-${prevEnd})`, description: "" });
+    }
+    if (pageEnd < results.length) {
+      const nextStart = pageEnd + 1;
+      const nextEnd = Math.min(pageEnd + PAGE_SIZE, results.length);
+      options.push({ label: `→ Next (${nextStart}-${nextEnd})`, description: "" });
+    }
+    options.push({ label: "↩ Done", description: "" });
+
+    const title = `zmarketplace: ${results.length} results (page ${Math.floor(pageStart / PAGE_SIZE) + 1}/${Math.ceil(results.length / PAGE_SIZE)})`;
+    const selected = await ctx.ui.select(title, options);
+
+    if (!selected || selected === "↩ Done") return;
+    if (selected.startsWith("← Previous")) { pageStart = Math.max(0, pageStart - PAGE_SIZE); continue; }
+    if (selected.startsWith("→ Next")) { pageStart += PAGE_SIZE; continue; }
+
+    const match = selected.match(/\[(\d+)\]/);
+    if (match) {
+      const pkg = results[parseInt(match[1], 10) - 1];
+      if (pkg) await packageDetail(pkg, ctx);
+    }
+  }
 }
 
 // ── Detail + README ────────────────────────────────────────────────────────
@@ -208,8 +238,8 @@ export default function zmarketplace(pi: {
           let limit = 50;
           if (!query && ctx.hasUI) {
             // Choose result limit
-            const limitChoice = await ctx.ui.select("Results limit", ["25", "50", "150", "Unlimited"]);
-            limit = limitChoice === "Unlimited" ? 999999 : parseInt(limitChoice ?? "50", 10);
+            const limitChoice = await ctx.ui.select("Results limit (50 per page)", ["25", "50", "150", "All (paged — may lag on fetch)"]);
+            limit = limitChoice?.startsWith("All") ? 999999 : parseInt(limitChoice ?? "50", 10);
             query = (await ctx.ui.input("🔍 Search packages", "Type search query...")) ?? "";
             if (!query) return;
           }
