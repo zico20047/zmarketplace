@@ -94,9 +94,6 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
 
   const repoBase = detail.repository?.replace(/^git\+/, "").replace(/\.git$/, "");
   const lines: string[] = [
-    "⬇ Install (audit first)",
-    "🔒 Audit only",
-    "↩ Back to results",
     `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
     detail.description || "",
   ];
@@ -115,6 +112,11 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
     lines.push(...rl);
     lines.push("...(see npm for full README)");
   }
+
+  // Actions at BOTTOM (natural reading flow — read first, install last)
+  lines.push("⬇ Install (audit first)");
+  lines.push("🔒 Audit only");
+  lines.push("↩ Back to results");
 
   while (true) {
     const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
