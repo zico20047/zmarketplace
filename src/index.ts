@@ -41,9 +41,9 @@ function extractUrl(line: string, repoBase?: string): string | null {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 
-async function doSearch(query: string, ctx: Ctx): Promise<void> {
+async function doSearch(query: string, ctx: Ctx, limit = 50): Promise<void> {
   ctx.ui.setStatus?.("Searching...");
-  const results = await search({ query, limit: 50, type: "all", ecosystem: "all" });
+  const results = await search({ query, limit, type: "all", ecosystem: "all" });
   cacheResults(results, query);
   if (results.length === 0) { ctx.ui.notify("No packages found.", "warning"); return; }
   ctx.ui.notify(`Found ${results.length} packages.`, "info");
@@ -79,8 +79,13 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
   if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
   if (repoBase) lines.push(`🔗 ${repoBase}`);
 
+  // Actions at TOP (easy to reach without scrolling)
+  lines.push("⬇ Install (audit first)");
+  lines.push("🔒 Audit only");
+  lines.push("↩ Back to results");
+
   if (detail.readme) {
-    lines.push("━━━ README (enter on 🔗/🖼 to open, esc for menu) ━━━");
+    lines.push("━━━ README (enter on 🔗/🖼 to open) ━━━");
     const rl = detail.readme
       .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 IMAGE: $1\n")
       .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 IMAGE: ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
@@ -88,12 +93,11 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
       .replace(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi, (_m, p) => `\n🖼 IMAGE: ${p}\n`)
       .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, "$2 → $1")
       .replace(/<[^>]+>/g, "")
-      .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0);
+      .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
+      .slice(0, 150); // cap at 150 lines to prevent lag
     lines.push(...rl);
+    if (detail.readme.length > 8000) lines.push("...(truncated — see npm for full README)");
   }
-  lines.push("⬇ Install (audit first)");
-  lines.push("🔒 Audit only");
-  lines.push("↩ Back to results");
 
   while (true) {
     const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
@@ -200,13 +204,16 @@ export default function zmarketplace(pi: {
         case "search":
         case "s":
         case "": {
-          // No subcommand or explicit search → prompt for query
           let query = args.positional.join(" ").trim();
+          let limit = 50;
           if (!query && ctx.hasUI) {
+            // Choose result limit
+            const limitChoice = await ctx.ui.select("Results limit", ["25", "50", "150", "Unlimited"]);
+            limit = limitChoice === "Unlimited" ? 999999 : parseInt(limitChoice ?? "50", 10);
             query = (await ctx.ui.input("🔍 Search packages", "Type search query...")) ?? "";
             if (!query) return;
           }
-          await doSearch(query, ctx);
+          await doSearch(query, ctx, limit);
           break;
         }
         default: {
