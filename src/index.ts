@@ -10,6 +10,7 @@ import { auditPackage } from "./core/audit.ts";
 import { cacheResults, resolveRef, cacheAudit } from "./core/cache.ts";
 import { formatResultOption, formatAuditReport, formatHelp, parseArgs } from "./core/tui.ts";
 import type { PackageResult } from "./core/types.ts";
+import { spawn } from "node:child_process";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,9 +27,9 @@ interface Ctx { cwd: string; hasUI: boolean; ui: UI }
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function openUrl(url: string): void {
-  if (process.platform === "win32") Bun.spawn(["cmd", "/c", "start", "", url], { stdout: "ignore", stderr: "ignore" });
-  else if (process.platform === "darwin") Bun.spawn(["open", url], { stdout: "ignore", stderr: "ignore" });
-  else Bun.spawn(["xdg-open", url], { stdout: "ignore", stderr: "ignore" });
+  const cmd = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  spawn(cmd, args, { stdio: "ignore", detached: true }).unref();
 }
 
 function extractUrl(line: string, repoBase?: string): string | null {
