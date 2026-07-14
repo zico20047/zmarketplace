@@ -94,6 +94,9 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
 
   const repoBase = detail.repository?.replace(/^git\+/, "").replace(/\.git$/, "");
   const lines: string[] = [
+    "⬇ Install (audit first)",
+    "🔒 Audit only",
+    "↩ Back to results",
     `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
     detail.description || "",
   ];
@@ -113,16 +116,15 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
     lines.push("...(see npm for full README)");
   }
 
-  // Actions at BOTTOM (natural reading flow — read first, install last)
-  lines.push("⬇ Install (audit first)");
-  lines.push("🔒 Audit only");
-  lines.push("↩ Back to results");
-
   while (true) {
     const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
-    if (!selected) continue;  // ESC → stay in detail, don't quit to results
+    if (!selected) continue;
     if (selected.includes("Back to results")) return;
-    if (selected.includes("Install")) { await doInstall(pkg, ctx); continue; }  // stay in detail after install
+    if (selected.includes("Install")) {
+      const cmd = await doInstall(pkg, ctx);
+      if (cmd) lines.push(`✅ Run: ${cmd}`);  // show command at BOTTOM
+      continue;
+    }
     if (selected.includes("Audit only")) { await doAudit(pkg.name, ctx); continue; }
     const url = extractUrl(selected, repoBase);
     if (url) { openUrl(url); ctx.ui.notify("🌐 Opened in browser", "info"); }
@@ -148,7 +150,7 @@ async function doAudit(name: string, ctx: Ctx): Promise<void> {
 
 // ── Install (audit FIRST, then options) ────────────────────────────────────
 
-async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<void> {
+async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
   // Audit first
   ctx.ui.setStatus?.(`Auditing ${pkg.name} before install...`);
   const report = await auditPackage(pkg.name, { deepScan: true });
@@ -187,13 +189,14 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<void> {
   // High risk confirmation
   if (report.risk === "critical" || report.risk === "high") {
     const proceed = await ctx.ui.confirm(`${report.risk} risk`, `⚠️ ${pkg.name}: ${report.findings.length} security findings. Install anyway?`);
-    if (!proceed) { ctx.ui.notify("Cancelled.", "info"); return; }
+    if (!proceed) { ctx.ui.notify("Cancelled.", "info"); return null; }
   }
 
   const choice = await ctx.ui.select(`Install ${pkg.name} — Risk: ${report.risk}`, cmds);
-  if (!choice || choice === "↩ Cancel") return;
+  if (!choice || choice === "↩ Cancel") return null;
   const command = cmdMap.get(choice);
   if (command) ctx.ui.notify(`✅ Run:\n  ${command}`, "info");
+  return command ?? null;
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
