@@ -208,48 +208,41 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<void> {
 
 // ── Factory ────────────────────────────────────────────────────────────────
 
-export default function zmarketplace(pi: {
-  registerCommand(name: string, def: { description: string; handler: (args: string, ctx: Ctx) => Promise<void> }): void;
-  setLabel?(label: string): void;
-}) {
-  pi.setLabel?.("Z Marketplace");
-  pi.registerCommand("zmarketplace", {
-    description: "Search, audit, and install packages across agent ecosystems",
-    handler: async (rawArgs: string, ctx: Ctx) => {
-      const args = parseArgs(rawArgs.trim().split(/\s+/).filter(Boolean));
-
-      switch (args.subcommand) {
-        case "help": {
-          ctx.ui.notify(formatHelp(), "info");
-          break;
-        }
-        case "audit":
-        case "a": {
-          const ref = args.positional[0];
-          if (!ref) { ctx.ui.notify("Usage: /zmarketplace audit <name>", "info"); break; }
-          await doAudit(resolveRef(ref)?.name ?? ref, ctx);
-          break;
-        }
-        case "search":
-        case "s":
-        case "": {
-          let query = args.positional.join(" ").trim();
-          let limit = 50;
-          if (!query && ctx.hasUI) {
-            // Choose result limit
-            const limitChoice = await ctx.ui.select("Results limit (50 per page)", ["25", "50", "150", "All (paged — may lag on fetch)"]);
-            limit = limitChoice?.startsWith("All") ? 999999 : parseInt(limitChoice ?? "50", 10);
-            query = (await ctx.ui.input("🔍 Search packages", "Type search query...")) ?? "";
-            if (!query) return;
-          }
-          await doSearch(query, ctx, limit);
-          break;
-        }
-        default: {
-          // Treat unknown as search query
-          await doSearch(rawArgs.trim(), ctx);
-        }
+// Command handler — extracted so it can be registered at the right time.
+const commandDef = {
+  description: "Search, audit, and install packages across agent ecosystems",
+  handler: async (rawArgs: string, ctx: Ctx) => {
+    const args = parseArgs(rawArgs.trim().split(/\s+/).filter(Boolean));
+    switch (args.subcommand) {
+      case "help": { ctx.ui.notify(formatHelp(), "info"); break; }
+      case "audit":
+      case "a": {
+        const ref = args.positional[0];
+        if (!ref) { ctx.ui.notify("Usage: /zmarketplace audit <name>", "info"); break; }
+        await doAudit(resolveRef(ref)?.name ?? ref, ctx);
+        break;
       }
-    },
-  });
+      case "search":
+      case "s":
+      case "": {
+        let query = args.positional.join(" ").trim();
+        let limit = 50;
+        if (!query && ctx.hasUI) {
+          const limitChoice = await ctx.ui.select("Results limit (50 per page)", ["25", "50", "150", "All (paged)"]);
+          limit = limitChoice?.startsWith("All") ? 999999 : parseInt(limitChoice ?? "50", 10);
+          query = (await ctx.ui.input("Search packages", "Type search query...")) ?? "";
+          if (!query) return;
+        }
+        await doSearch(query, ctx, limit);
+        break;
+      }
+      default: { await doSearch(rawArgs.trim(), ctx); }
+    }
+  },
+} as const;
+
+export default function zmarketplace(pi: {
+  registerCommand?(name: string, def: { description: string; handler: (args: string, ctx: Ctx) => Promise<void> }): void;
+}) {
+  pi.registerCommand?.("zmarketplace", commandDef);
 }
