@@ -54,6 +54,7 @@ export function detectEcosystems(keywords?: string[], name?: string): Ecosystem[
   if (kws.has("opencode") || kws.has("opencode-plugin") || n.includes("opencode")) result.push("opencode");
   if (kws.has("gemini-cli") || kws.has("gemini-extension") || kws.has("gemini-cli-extension") || n.includes("gemini")) result.push("gemini");
   if (kws.has("codex") || kws.has("codex-plugin") || kws.has("codex-cli") || n.includes("codex")) result.push("codex");
+  if (kws.has("npm") || kws.has("bun") || kws.has("pnpm") || kws.has("yarn") || kws.has("nodejs") || kws.has("deno")) result.push("npm");
 
   if (result.length === 0) result.push("unknown");
   return result;
@@ -83,7 +84,7 @@ export function installCommandFor(name: string, ecosystem: Ecosystem): string {
     case "claude": return `claude plugin install npm:${name}`;
     case "opencode": return `opencode plugin ${name}`;
     case "gemini": return `gemini extension install npm:${name}`;
-    case "codex": return `codex plugin add npm:${name}`;
+    case "npm": return `npm install ${name}`;
     default: return `npm install ${name}`;
   }
 }
@@ -96,7 +97,7 @@ export async function searchNpm(
   const limit = options.limit ?? 25;
   const allEcosystems: Ecosystem[] = options.ecosystems && options.ecosystems.length > 0
     ? options.ecosystems
-    : ["pi", "claude", "opencode", "gemini", "codex"];
+    : ["pi", "claude", "opencode", "gemini", "codex", "npm"];
 
   // Collect unique keywords for the selected ecosystems
   const keywords = new Set<string>();

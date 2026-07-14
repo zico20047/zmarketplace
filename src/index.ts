@@ -181,6 +181,12 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
     if (eco === "opencode" && !seen.has("opencode")) { seen.add("opencode"); addCmd("🔓 opencode", `opencode plugin ${pkg.name}`); }
     if (eco === "gemini" && !seen.has("gemini")) { seen.add("gemini"); addCmd("💎 gemini", `gemini extension install ${pkg.repository ?? pkg.name}`); }
     if (eco === "codex" && !seen.has("codex")) { seen.add("codex"); addCmd("🔲 codex", `codex plugin add npm:${pkg.name}`); }
+    if (eco === "npm" && !seen.has("npm")) {
+      seen.add("npm");
+      addCmd("📦 npm", `npm install ${pkg.name}`);
+      addCmd("🟤 bun add", `bun add ${pkg.name}`);
+      addCmd("📦 pnpm add", `pnpm add ${pkg.name}`);
+    }
   }
   if (!seen.has("npm")) addCmd("📦 npm", `npm install ${pkg.name}`);
   addCmd("⚡ bunx", `bunx ${pkg.name}`);

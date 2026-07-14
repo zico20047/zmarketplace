@@ -3,7 +3,7 @@
  */
 
 /** Which agent ecosystem a package targets. */
-export type Ecosystem = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex" | "universal" | "unknown";
+export type Ecosystem = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex" | "npm" | "universal" | "unknown";
 
 /** Package resource type. */
 export type PackageType = "extension" | "skill" | "theme" | "prompt" | "plugin" | "mcp" | "unknown";
@@ -113,7 +113,7 @@ export interface AuditReport {
 }
 
 /** Install target — which agent's install command to use. */
-export type InstallTarget = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex" | "auto";
+export type InstallTarget = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex" | "npm" | "auto";
 
 /** Result of an install operation. */
 export interface InstallResult {
@@ -132,4 +132,5 @@ export const ECOSYSTEM_KEYWORDS: Record<Exclude<Ecosystem, "unknown" | "universa
   opencode: ["opencode", "opencode-plugin"],
   gemini: ["gemini-cli", "gemini-extension", "gemini-cli-extension"],
   codex: ["codex", "codex-plugin", "codex-cli"],
+  npm: ["npm", "bun", "pnpm", "yarn", "nodejs", "deno"],
 };

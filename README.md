@@ -1,111 +1,130 @@
 # zmarketplace
 
-Cross-agent marketplace search plugin. Type `/zmarketplace` in pi/omp to search, inspect, audit, and install packages across npm, Claude marketplace, and Gemini extensions.
+Cross-agent marketplace search plugin. Type `/zmarketplace` in pi/omp to search, inspect, audit, and install packages across npm, Claude marketplace, Gemini extensions, and the official MCP registry.
 
 ## Install
 
 ```bash
-# pi / omp (slash command)
+# pi
 pi install npm:zmarketplace
-# or link locally:
-omp plugin link ./search_marketplace
 
-# then in omp TUI:
+# omp
+omp plugin install npm:zmarketplace
+
+# then reload
 /reload
-/zmarketplace search mcp
+/zmarketplace
 ```
 
 ## Usage
 
 ```
-/zmarketplace search <query> [--type=<type>] [--eco=<ecosystem>] [--limit=<n>]
-/zmarketplace detail <id|name>
-/zmarketplace audit <id|name>
-/zmarketplace install <id|name>
+/zmarketplace                    → prompt for search query
+/zmarketplace search mcp         → search directly
+/zmarketplace audit <name>       → security scan
+/zmarketplace install <name>     → install flow
 ```
 
-### Search
+### Search flow
 
 ```
-/zmarketplace search mcp
-/zmarketplace search subagent --eco=pi
-/zmarketplace search theme --type=theme --limit=10
+/zmarketplace
+→ Choose limit: 25 / 50 / 150 / All (paged)
+→ Type query: "mcp"
+→ Browse results (50 per page, ← Previous / → Next)
+→ Enter on a package → detail view
 ```
 
-Opens an interactive select list. Scroll up/down, type to filter, enter to pick.
+### Detail view
 
-### Detail + README
+```
+ learnship — Details
 
-Pick a package → select "📋 Details + README" → full README in a scrollable list.
+ ❯ ⬇ Install (audit first)        ← actions at TOP
+   🔒 Audit only
+   ↩ Back to results
+   📦 learnship v2.4.0 — MIT · 0 deps · 1296KB
+   Learn as you build...
+   🔗 https://www.npmjs.com/package/learnship
+   🔗 https://github.com/FavioVazquez/learnship
+   ━━━ README (40 lines) ━━━
+   # learnship
+   ...README content...
+   ✅ Run: pi install npm:learnship  ← selected command at BOTTOM
+```
 
-- **Enter on a URL line** (🖼 IMAGE, 🔗 link) → opens in your browser
-- **Enter on text** → stays in detail view
-- **Type to search** → filters README lines
-- **ESC or "Back to menu"** → returns to action menu
+- **Enter on 🔗/🖼 line** → opens URL in browser
+- **Enter on text** → stays in detail
+- **Type to search** → filters lines
+- **ESC** → stays in detail
 
-### Install
+### Install flow
 
-Pick "⬇ Install" → choose ecosystem:
+Pick "⬇ Install" → audit runs first → choose ecosystem:
 
 | Option | Command |
 |---|---|
-| 🥧 pi install | `pi install npm:<name>` |
-| ⌥ omp install | `omp plugin install npm:<name>` |
-| 🤖 claude install | `claude plugin install npm:<name>` |
-| 🔓 opencode install | `opencode plugin <name>` |
-| 💎 gemini install | `gemini extension install <url>` |
-| 🔲 codex install | `codex plugin add npm:<name>` |
-| 📦 npm install | `npm install <name>` |
+| 🥧 pi | `pi install npm:<name>` |
+| ⌥ omp | `omp plugin install npm:<name>` |
+| 🤖 claude | `claude plugin install npm:<name>` |
+| 🔓 opencode | `opencode plugin <name>` |
+| 💎 gemini | `gemini extension install <url>` |
+| 🔲 codex | `codex plugin add npm:<name>` |
+| 📦 npm | `npm install <name>` |
 | ⚡ bunx | `bunx <name>` |
 
-Quick security check runs before showing the command. High-risk packages require confirmation.
+The selected command appears at the bottom of the detail list.
 
-### Audit
+## Registries searched
 
-```
-/zmarketplace audit pi-mcp-adapter
-```
+| Registry | What | Source |
+|---|---|---|
+| **npm** | pi/omp, claude, opencode, gemini, codex packages | `registry.npmjs.org` |
+| **Claude marketplace** | ~800+ Claude Code plugins | `anthropics/claude-plugins-official` + community |
+| **Gemini extensions** | ~993 Gemini CLI extensions | `geminicli.com/extensions.json` |
+| **MCP registry** | MCP servers | `registry.modelcontextprotocol.io` |
 
-Two-layer security scan:
-- **Layer 1 (metadata):** dependency count, file count, size, license
-- **Layer 2 (source):** downloads tarball, scans `.ts`/`.js` for dangerous patterns (`rm -rf`, `eval()`, `execSync()`, `child_process`, etc.)
+All registries queried in parallel. Results deduplicated and ranked.
 
-## Registries
+## Security audit
 
-| Source | Coverage |
+Two-layer scan before install:
+
+| Layer | What |
 |---|---|
-| npm | `pi-package`, `claude-code`, `opencode`, `gemini-cli`, `codex` keywords |
-| Claude marketplace | `anthropics/claude-plugins-official` + community (~800+ plugins) |
-| Gemini extensions | `geminicli.com/extensions.json` (~993 extensions) |
+| **Metadata** | Dependency count, file count, size, license |
+| **Source** | Downloads tarball, scans `.ts`/`.js` for `eval()`, `execSync()`, `rm -rf`, `child_process`, etc. |
 
-## CLI (standalone, no agent needed)
+Severity: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
+
+## CLI (standalone)
 
 ```bash
 bunx zmarketplace search "mcp" --limit=5
 bunx zmarketplace detail pi-marketplace
 bunx zmarketplace audit pi-marketplace
-bunx zmarketplace install pi-marketplace
 ```
 
 ## Architecture
 
 ```
 src/
-├── index.ts          ← pi/omp extension: registerCommand("/zmarketplace")
-├── cli.ts            ← standalone CLI: bunx zmarketplace
-├── opencode.ts       ← opencode plugin entry
+├── index.ts              ← pi/omp extension (registerCommand)
+├── cli.ts                ← standalone CLI (bunx zmarketplace)
+├── opencode.ts           ← opencode plugin entry
 ├── core/
-│   ├── types.ts      ← unified package model
-│   ├── search.ts     ← cross-registry search + dedup + ranking
-│   ├── detail.ts     ← npm metadata + README fetch
-│   ├── audit.ts      ← 2-layer security scanner
-│   ├── install.ts    ← agent detection + install command dispatch
-│   ├── cache.ts      ← results cache for ID-based reference
-│   └── tui.ts        ← icons, formatting, arg parser
+│   ├── types.ts          ← unified package model
+│   ├── search.ts         ← cross-registry search + dedup + ranking
+│   ├── detail.ts         ← npm metadata + README fetch
+│   ├── audit.ts          ← 2-layer security scanner
+│   ├── install.ts        ← agent detection + command dispatch
+│   ├── cache.ts          ← results cache for ID reference
+│   └── tui.ts            ← icons, formatting, arg parser
 └── registries/
-    ├── npm.ts        ← npm registry (parallel per-keyword queries)
-    ├── claude.ts     ← Claude marketplace JSON
-    └── gemini.ts     ← Gemini CLI extensions registry
+    ├── npm.ts            ← npm (parallel per-keyword queries)
+    ├── claude.ts         ← Claude marketplace JSON
+    ├── gemini.ts         ← Gemini CLI extensions
+    └── mcp.ts            ← Official MCP registry
 ```
 
 ## Cross-agent manifests
@@ -113,14 +132,12 @@ src/
 | File | Ecosystem |
 |---|---|
 | `package.json` (`pi.extensions`, `omp.extensions`) | Pi, OMP |
-| `package.json` (`bin`, `exports`) | CLI, OpenCode |
+| `package.json` (`bin`) | CLI |
 | `.claude-plugin/plugin.json` | Claude Code |
 | `gemini-extension.json` | Gemini CLI |
 | `.codex-plugin/plugin.json` | Codex |
 
 ## Support
-
-If this plugin helped you, consider supporting:
 
 ☕ [ko-fi.com/zicodev](https://ko-fi.com/zicodev)
 

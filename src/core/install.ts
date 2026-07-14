@@ -31,8 +31,9 @@ function buildCommand(packageName: string, target: InstallTarget): string {
     case "claude": return `claude plugin install npm:${packageName}`;
     case "opencode": return `opencode plugin ${packageName}`;
     case "gemini": return `gemini extension install npm:${packageName}`;
-    case "codex": return `codex plugin add npm:${packageName}`;
-    case "auto": return `npm install ${packageName}`;
+    case "npm":
+    case "auto":
+    default: return `npm install ${packageName}`;
   }
 }
 
@@ -49,6 +50,7 @@ async function resolveAutoTarget(packageName: string): Promise<InstallTarget> {
   if (kws.has("opencode")) return "opencode";
   if (kws.has("gemini-cli")) return "gemini";
   if (kws.has("codex")) return "codex";
+  if (kws.has("npm") || kws.has("bun") || kws.has("nodejs")) return "npm";
   return "auto";
 }
 

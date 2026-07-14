@@ -1,6 +1,6 @@
 {
   "name": "zmarketplace",
-  "version": "0.5.0",
+  "version": "0.5.3",
   "description": "Cross-agent marketplace search: find, audit, and install plugins/skills/themes/prompts across pi, omp, claude code, opencode, gemini cli, and codex",
   "license": "MIT",
   "type": "module",
@@ -20,6 +20,7 @@
     "opencode",
     "gemini-cli",
     "codex",
+    "npm",
     "marketplace",
     "plugin",
     "search",

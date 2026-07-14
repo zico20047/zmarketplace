@@ -20,7 +20,6 @@ function registriesForOptions(registry?: RegistrySource | "all"): RegistrySource
 /** Map a user-facing ecosystem filter to npm ecosystem list for the npm adapter. */
 function ecosystemsForFilter(ecosystem?: Ecosystem | "all"): Ecosystem[] | undefined {
   if (!ecosystem || ecosystem === "all") return undefined;
-  // pi and omp share the same npm keyword
   if (ecosystem === "omp") return ["pi"];
   return [ecosystem];
 }
