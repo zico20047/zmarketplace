@@ -96,29 +96,23 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
     "⬇ Install (audit first)",
     "🔒 Audit only",
     "↩ Back to results",
-    "━━━ Package ━━━",
-    `📦 ${detail.name} v${detail.version ?? "?"}`,
+    `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
     detail.description || "",
-    `License: ${detail.license ?? "?"}  Deps: ${detail.dependencyCount ?? "?"}  Size: ${detail.size ? (detail.size / 1024).toFixed(1) + " KB" : "?"}`,
-    `Published: ${detail.publishedAt?.slice(0, 10) ?? "?"}`,
   ];
-  if (detail.keywords?.length) lines.push(`Keywords: ${detail.keywords.join(", ")}`);
   if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
   if (repoBase) lines.push(`🔗 ${repoBase}`);
 
   if (detail.readme) {
-    lines.push("━━━ README (enter on 🔗/🖼 to open) ━━━");
+    lines.push("━━━ README (40 lines — enter on 🔗 to open) ━━━");
     const rl = detail.readme
-      .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 IMAGE: $1\n")
-      .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 IMAGE: ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
+      .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 $1\n")
+      .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 → $2")
-      .replace(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi, (_m, p) => `\n🖼 IMAGE: ${p}\n`)
-      .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, "$2 → $1")
       .replace(/<[^>]+>/g, "")
       .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
-      .slice(0, 150);
+      .slice(0, 40);
     lines.push(...rl);
-    if (detail.readme.length > 8000) lines.push("...(truncated — see npm for full README)");
+    lines.push("...(see npm for full README)");
   }
 
   while (true) {
