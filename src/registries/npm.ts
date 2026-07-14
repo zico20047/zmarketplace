@@ -113,7 +113,7 @@ export async function searchNpm(
     const searchText = q ? `keywords:${kw} ${q}` : `keywords:${kw}`;
     const url = `${NPM_SEARCH_URL}?text=${encodeURIComponent(searchText)}&size=${perKeyword}`;
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) return [];
       const data = await resp.json() as NpmSearchResponse;
       return data.objects;
@@ -157,7 +157,7 @@ export async function searchNpm(
 /** Fetch full metadata for a specific package. */
 export async function getNpmPackageMeta(name: string): Promise<NpmPackageMeta | null> {
   try {
-    const resp = await fetch(`${NPM_PACKAGE_URL}/${encodeURIComponent(name)}`);
+    const resp = await fetch(`${NPM_PACKAGE_URL}/${encodeURIComponent(name)}`, { signal: AbortSignal.timeout(10000) });
     if (!resp.ok) return null;
     return await resp.json() as NpmPackageMeta;
   } catch {

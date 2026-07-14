@@ -149,7 +149,7 @@ export async function auditPackage(
     try {
       const tarballUrl = meta?.versions[latestVersion]?.dist?.tarball;
       if (tarballUrl) {
-        const resp = await fetch(tarballUrl);
+        const resp = await fetch(tarballUrl, { signal: AbortSignal.timeout(30000) });
         if (resp.ok) {
           const tarball = new Uint8Array(await resp.arrayBuffer());
           const files = extractTextFilesFromTar(tarball);

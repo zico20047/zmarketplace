@@ -1,6 +1,6 @@
 {
   "name": "zmarketplace",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Cross-agent marketplace search: find, audit, and install packages across pi, omp, claude code, opencode, gemini cli, and codex",
   "license": "MIT"
 }

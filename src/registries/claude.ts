@@ -33,7 +33,7 @@ interface MarketplaceCatalog {
 export async function searchClaudeMarketplace(query: string, limit = 25): Promise<PackageResult[]> {
   const catalogs = await Promise.allSettled(
     MARKETPLACE_URLS.map(async url => {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       return await resp.json() as MarketplaceCatalog;
     }),

@@ -7,6 +7,13 @@
   "bin": {
     "zmarketplace": "./src/cli.ts"
   },
+  "files": [
+    "src",
+    "README.md",
+    ".claude-plugin",
+    ".codex-plugin",
+    "gemini-extension.json"
+  ],
   "keywords": [
     "pi-package",
     "claude-code",
@@ -31,12 +38,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun run test/smoke.ts"
+    "test": "bun run test/full-test.ts"
   },
   "devDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
+    "typescript": "^5",
     "@types/bun": "^1.3.14"
   },
   "engines": {

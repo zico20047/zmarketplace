@@ -37,7 +37,7 @@ async function getRegistry(): Promise<GeminiExtension[]> {
   if (cachedExtensions && now - cacheTime < CACHE_TTL_MS) return cachedExtensions;
 
   try {
-    const resp = await fetch(GEMINI_REGISTRY_URL);
+    const resp = await fetch(GEMINI_REGISTRY_URL, { signal: AbortSignal.timeout(15000) });
     if (!resp.ok) return cachedExtensions ?? [];
     const data = await resp.json();
     cachedExtensions = Array.isArray(data) ? data : [];

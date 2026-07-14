@@ -7,10 +7,9 @@
 import { search } from "./core/search.ts";
 import { getDetail } from "./core/detail.ts";
 import { auditPackage } from "./core/audit.ts";
-import { installPackage } from "./core/install.ts";
 import { cacheResults, resolveRef, cacheAudit } from "./core/cache.ts";
 import { formatResultOption, formatAuditReport, formatHelp, parseArgs } from "./core/tui.ts";
-import type { PackageResult, SearchOptions } from "./core/types.ts";
+import type { PackageResult } from "./core/types.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
