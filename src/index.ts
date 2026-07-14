@@ -100,6 +100,10 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
 
   const repoBase = detail.repository?.replace(/^git\+/, "").replace(/\.git$/, "");
   const lines: string[] = [
+    "⬇ Install (audit first)",
+    "🔒 Audit only",
+    "↩ Back to results",
+    "━━━ Package ━━━",
     `📦 ${detail.name} v${detail.version ?? "?"}`,
     detail.description || "",
     `License: ${detail.license ?? "?"}  Deps: ${detail.dependencyCount ?? "?"}  Size: ${detail.size ? (detail.size / 1024).toFixed(1) + " KB" : "?"}`,
@@ -108,11 +112,6 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
   if (detail.keywords?.length) lines.push(`Keywords: ${detail.keywords.join(", ")}`);
   if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
   if (repoBase) lines.push(`🔗 ${repoBase}`);
-
-  // Actions at TOP (easy to reach without scrolling)
-  lines.push("⬇ Install (audit first)");
-  lines.push("🔒 Audit only");
-  lines.push("↩ Back to results");
 
   if (detail.readme) {
     lines.push("━━━ README (enter on 🔗/🖼 to open) ━━━");
@@ -124,16 +123,16 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
       .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, "$2 → $1")
       .replace(/<[^>]+>/g, "")
       .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
-      .slice(0, 150); // cap at 150 lines to prevent lag
+      .slice(0, 150);
     lines.push(...rl);
     if (detail.readme.length > 8000) lines.push("...(truncated — see npm for full README)");
   }
 
   while (true) {
     const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
-    if (!selected) return;
+    if (!selected) continue;  // ESC → stay in detail, don't quit to results
     if (selected.includes("Back to results")) return;
-    if (selected.includes("Install")) { await doInstall(pkg, ctx); return; }
+    if (selected.includes("Install")) { await doInstall(pkg, ctx); continue; }  // stay in detail after install
     if (selected.includes("Audit only")) { await doAudit(pkg.name, ctx); continue; }
     const url = extractUrl(selected, repoBase);
     if (url) { openUrl(url); ctx.ui.notify("🌐 Opened in browser", "info"); }
