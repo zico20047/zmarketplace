@@ -58,23 +58,16 @@ async function browseResults(results: PackageResult[], ctx: Ctx): Promise<void> 
     const pageEnd = Math.min(pageStart + PAGE_SIZE, results.length);
     const page = results.slice(pageStart, pageEnd);
 
-    const options = page.map((r, i) => {
-      const globalIdx = pageStart + i;
-      return { label: formatResultOption(r, globalIdx).label, description: r.installCommand ?? "" };
-    });
+    const options: string[] = page.map((r, i) => formatResultOption(r, pageStart + i).label);
 
-    // Pagination controls
     if (pageStart > 0) {
-      const prevStart = Math.max(0, pageStart - PAGE_SIZE) + 1;
-      const prevEnd = pageStart;
-      options.push({ label: `← Previous (${prevStart}-${prevEnd})`, description: "" });
+      const ps = Math.max(0, pageStart - PAGE_SIZE) + 1;
+      options.push(`← Previous (${ps}-${pageStart})`);
     }
     if (pageEnd < results.length) {
-      const nextStart = pageEnd + 1;
-      const nextEnd = Math.min(pageEnd + PAGE_SIZE, results.length);
-      options.push({ label: `→ Next (${nextStart}-${nextEnd})`, description: "" });
+      options.push(`→ Next (${pageEnd + 1}-${Math.min(pageEnd + PAGE_SIZE, results.length)})`);
     }
-    options.push({ label: "↩ Done", description: "" });
+    options.push("↩ Done");
 
     const title = `zmarketplace: ${results.length} results (page ${Math.floor(pageStart / PAGE_SIZE) + 1}/${Math.ceil(results.length / PAGE_SIZE)})`;
     const selected = await ctx.ui.select(title, options);
@@ -173,25 +166,26 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<void> {
     "",
   ];
 
-  // Build install options
-  const cmds: Array<{ label: string; description: string }> = [];
+  // Build install options as plain strings
+  const cmds: string[] = [];
+  const cmdMap = new Map<string, string>();
   const seen = new Set<string>();
+  const addCmd = (label: string, command: string) => { cmds.push(label); cmdMap.set(label, command); };
+
   for (const eco of pkg.ecosystems) {
     if ((eco === "pi" || eco === "omp") && !seen.has("pi")) {
       seen.add("pi");
-      auditLines.push("🥧 pi install");
-      cmds.push({ label: "🥧 pi install", description: `pi install npm:${pkg.name}` });
-      cmds.push({ label: "⌥ omp install", description: `omp plugin install npm:${pkg.name}` });
-      auditLines.push("⌥ omp install");
+      addCmd("🥧 pi install", `pi install npm:${pkg.name}`);
+      addCmd("⌥ omp install", `omp plugin install npm:${pkg.name}`);
     }
-    if (eco === "claude" && !seen.has("claude")) { seen.add("claude"); cmds.push({ label: "🤖 claude", description: `claude plugin install npm:${pkg.name}` }); auditLines.push("🤖 claude install"); }
-    if (eco === "opencode" && !seen.has("opencode")) { seen.add("opencode"); cmds.push({ label: "🔓 opencode", description: `opencode plugin ${pkg.name}` }); auditLines.push("🔓 opencode install"); }
-    if (eco === "gemini" && !seen.has("gemini")) { seen.add("gemini"); cmds.push({ label: "💎 gemini", description: `gemini extension install ${pkg.repository ?? pkg.name}` }); auditLines.push("💎 gemini install"); }
-    if (eco === "codex" && !seen.has("codex")) { seen.add("codex"); cmds.push({ label: "🔲 codex", description: `codex plugin add npm:${pkg.name}` }); auditLines.push("🔲 codex install"); }
+    if (eco === "claude" && !seen.has("claude")) { seen.add("claude"); addCmd("🤖 claude", `claude plugin install npm:${pkg.name}`); }
+    if (eco === "opencode" && !seen.has("opencode")) { seen.add("opencode"); addCmd("🔓 opencode", `opencode plugin ${pkg.name}`); }
+    if (eco === "gemini" && !seen.has("gemini")) { seen.add("gemini"); addCmd("💎 gemini", `gemini extension install ${pkg.repository ?? pkg.name}`); }
+    if (eco === "codex" && !seen.has("codex")) { seen.add("codex"); addCmd("🔲 codex", `codex plugin add npm:${pkg.name}`); }
   }
-  if (!seen.has("npm")) { cmds.push({ label: "📦 npm", description: `npm install ${pkg.name}` }); auditLines.push("📦 npm install"); }
-  cmds.push({ label: "⚡ bunx", description: `bunx ${pkg.name}` });
-  cmds.push({ label: "↩ Cancel", description: "" });
+  if (!seen.has("npm")) addCmd("📦 npm", `npm install ${pkg.name}`);
+  addCmd("⚡ bunx", `bunx ${pkg.name}`);
+  cmds.push("↩ Cancel");
 
   // High risk confirmation
   if (report.risk === "critical" || report.risk === "high") {
@@ -199,11 +193,10 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<void> {
     if (!proceed) { ctx.ui.notify("Cancelled.", "info"); return; }
   }
 
-  const choice = await ctx.ui.select(`Install ${pkg.name} — Audit: ${report.risk}`, cmds);
-  if (!choice || choice.includes("Cancel")) return;
-  const selected = cmds.find(c => c.label === choice);
-  if (!selected) return;
-  ctx.ui.notify(`✅ Run:\n  ${selected.description}`, "info");
+  const choice = await ctx.ui.select(`Install ${pkg.name} — Risk: ${report.risk}`, cmds);
+  if (!choice || choice === "↩ Cancel") return;
+  const command = cmdMap.get(choice);
+  if (command) ctx.ui.notify(`✅ Run:\n  ${command}`, "info");
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
