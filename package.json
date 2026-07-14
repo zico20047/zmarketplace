@@ -1,0 +1,45 @@
+{
+  "name": "zmarketplace",
+  "version": "0.3.0",
+  "description": "Cross-agent marketplace search: find, audit, and install plugins/skills/themes/prompts across pi, omp, claude code, opencode, gemini cli, and codex",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "zmarketplace": "./src/cli.ts"
+  },
+  "keywords": [
+    "pi-package",
+    "claude-code",
+    "opencode",
+    "gemini-cli",
+    "codex",
+    "marketplace",
+    "plugin",
+    "search",
+    "install",
+    "audit"
+  ],
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "omp": {
+    "extensions": ["./src/index.ts"]
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/opencode.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun run test/smoke.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@types/bun": "^1.3.14"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

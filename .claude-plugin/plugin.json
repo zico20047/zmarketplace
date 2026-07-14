@@ -1,0 +1,15 @@
+{
+  "name": "zmarketplace",
+  "version": "0.1.0",
+  "description": "Cross-agent marketplace search: find, audit, and install packages across pi, omp, claude code, opencode, gemini cli, and codex",
+  "author": { "name": "zmarketplace" },
+  "license": "MIT",
+  "keywords": [
+    "marketplace",
+    "search",
+    "install",
+    "audit",
+    "cross-agent"
+  ],
+  "defaultEnabled": true
+}

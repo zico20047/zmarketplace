@@ -1,0 +1,10 @@
+node_modules/
+bun.lock
+bun.lockb
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+dist/
+.test/
