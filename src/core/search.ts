@@ -7,11 +7,12 @@ import type { PackageResult, SearchOptions, Ecosystem, RegistrySource } from "./
 import { searchNpm, detectEcosystems } from "../registries/npm.ts";
 import { searchClaudeMarketplace } from "../registries/claude.ts";
 import { searchGeminiExtensions } from "../registries/gemini.ts";
+import { searchMcpRegistry } from "../registries/mcp.ts";
 
 /** Determine which registries to query based on options. */
 function registriesForOptions(registry?: RegistrySource | "all"): RegistrySource[] {
   if (!registry || registry === "all") {
-    return ["npm", "claude-marketplace", "gemini-extensions"];
+    return ["npm", "claude-marketplace", "gemini-extensions", "mcp-registry"];
   }
   return [registry];
 }
@@ -78,6 +79,9 @@ export async function search(options: SearchOptions): Promise<PackageResult[]> {
   }
   if (registries.includes("gemini-extensions")) {
     queries.push(searchGeminiExtensions(options.query, limit));
+  }
+  if (registries.includes("mcp-registry")) {
+    queries.push(searchMcpRegistry(options.query, limit));
   }
 
   const settled = await Promise.allSettled(queries);

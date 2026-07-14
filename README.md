@@ -118,6 +118,12 @@ src/
 | `gemini-extension.json` | Gemini CLI |
 | `.codex-plugin/plugin.json` | Codex |
 
+## Support
+
+If this plugin helped you, consider supporting:
+
+☕ [ko-fi.com/zicodev](https://ko-fi.com/zicodev)
+
 ## License
 
 MIT
