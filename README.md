@@ -1,6 +1,18 @@
 # zmarketplace
 
-Cross-agent package marketplace search. One `/zmarketplace` command searches npm, Claude marketplace, Gemini extensions, and the official MCP registry — then browse, audit, and install.
+Cross-agent package marketplace search. One `/zmarketplace` command searches npm, Claude marketplace, Gemini extensions, MCP registry, Smithery, and GitHub — then browse, audit, and install.
+
+## Status
+
+| Agent | Support |
+|---|---|
+| **pi** | ✅ Full — `/zmarketplace` slash command + auto-install |
+| **omp** | ✅ Full — `/zmarketplace` slash command + auto-install |
+| **CLI** | ✅ `bunx zmarketplace search/detail/audit/install` |
+| OpenCode | 🔧 Experimental — tool only (no slash command) |
+| Claude Code | 🔧 CLI only |
+| Gemini CLI | 🔧 CLI only |
+| Codex | 🔧 CLI only |
 
 ## Install
 
@@ -15,6 +27,18 @@ omp plugin install npm:zmarketplace
 
 Then `/reload` and type `/zmarketplace`.
 
+## Commands
+
+```
+/zmarketplace                     Interactive search prompt
+/zmarketplace search <query>      Search all registries
+/zmarketplace popular             Browse popular packages
+/zmarketplace updates             Check installed for updates
+/zmarketplace detail <name>       Show package details + README
+/zmarketplace audit <name>        Security scan
+/zmarketplace install <name>      Audit + install
+```
+
 ## Quick Start
 
 ```
@@ -23,20 +47,36 @@ Then `/reload` and type `/zmarketplace`.
 → Type query: "mcp"
 → Browse 50 results per page (← Previous / → Next)
 → Enter on package → detail + README
-→ Enter on ⬇ Install → choose ecosystem → command at bottom
+→ ⬇ Install → choose ecosystem → installs automatically
+→ /reload to activate
 ```
 
-## Commands
+## Search
 
-| Command | What |
+Searches **6 registries in parallel**:
+
+| Registry | Coverage |
 |---|---|
-| `/zmarketplace` | Interactive search prompt |
-| `/zmarketplace search <query>` | Search directly |
-| `/zmarketplace search mcp --eco=pi` | Filter by ecosystem |
-| `/zmarketplace search theme --type=theme` | Filter by type |
-| `/zmarketplace detail <name>` | Show package detail |
-| `/zmarketplace audit <name>` | Security scan |
-| `/zmarketplace install <name>` | Install flow |
+| npm | `pi-package`, `claude-code`, `opencode`, `gemini-cli`, `codex`, `npm`, `bun`, `pnpm` keywords |
+| Claude marketplace | Official + community (~800+ plugins) |
+| Gemini extensions | geminicli.com (~993 extensions) |
+| MCP registry | registry.modelcontextprotocol.io (official) |
+| Smithery | api.smithery.ai (MCP servers) |
+| GitHub topics | `topic:claude-code`, `topic:mcp-server`, etc |
+
+### Filters
+
+```
+/zmarketplace search mcp --eco=pi
+/zmarketplace search theme --type=theme
+/zmarketplace search --limit=150
+```
+
+| Filter | Values |
+|---|---|
+| `--eco` | pi, claude, opencode, gemini, codex, npm |
+| `--type` | extension, skill, theme, prompt, plugin, mcp |
+| `--limit` | 25, 50, 150, All (paged at 50/page) |
 
 ## Detail View
 
@@ -52,20 +92,18 @@ Then `/reload` and type `/zmarketplace`.
    🔗 https://github.com/FavioVazquez/learnship
    ━━━ README ━━━
    # learnship
-   ...40 lines of README...
-   ...(see npm for full README)
+   ...40 lines...
    ✅ Run: pi install npm:learnship
 ```
 
-- **Actions at top** — Install / Audit / Back
-- **README below** — 40 lines, scrollable
-- **Enter on 🔗 or 🖼** — opens URL in browser
-- **Enter on text** — stays in detail
-- **Selected command at bottom** — after picking install option
+- ✓ marks packages you already have installed
+- Enter on 🔗 or 🖄 → opens in browser
+- Enter on text → stays in detail
+- Type to filter lines
 
-## Install Options
+## Install
 
-After audit, choose how to install:
+After audit, choose ecosystem (auto-installs):
 
 | Option | Command |
 |---|---|
@@ -80,37 +118,35 @@ After audit, choose how to install:
 | 📦 pnpm | `pnpm add <name>` |
 | ⚡ bunx | `bunx <name>` |
 
-High-risk packages require confirmation before showing the command.
+High-risk packages require confirmation.
+
+## Updates
+
+```
+/zmarketplace updates
+```
+
+Scans installed packages, compares with latest on npm:
+
+```
+ 2 updates available (5 packages)
+
+ ❯ ⬆ pi-subagents: 0.14.0 → 0.34.0 [omp]
+   ⬆ bigpowers: 2.76.3 → 2.77.0 [omp]
+   ✓ pi-hypa: 0.1.11 [omp]
+   ↩ Back
+```
 
 ## Security Audit
 
-| Layer | What it checks |
+| Layer | What |
 |---|---|
 | Metadata | Dependency count, file count, size, license |
 | Source scan | Downloads tarball, scans `.ts`/`.js` for `eval()`, `execSync()`, `rm -rf`, `child_process`, `process.env`, HTTP calls |
 
-Severity levels: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
+Severity: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
 
-## Registries
-
-| Registry | Coverage |
-|---|---|
-| npm | `pi-package`, `claude-code`, `opencode`, `gemini-cli`, `codex`, `npm`, `bun`, `pnpm` keywords |
-| Claude marketplace | Official + community (~800+ plugins) |
-| Gemini extensions | geminicli.com (~993 extensions) |
-| MCP registry | registry.modelcontextprotocol.io (official) |
-
-All queried in parallel, deduplicated, ranked by relevance.
-
-## Filters
-
-```
---type=extension    extension, skill, theme, prompt, plugin, mcp
---eco=pi            pi, claude, opencode, gemini, codex, npm
---limit=50          25, 50, 150, All (paged at 50/page)
-```
-
-## CLI (standalone)
+## CLI
 
 ```bash
 bunx zmarketplace search "mcp" --limit=5
@@ -119,42 +155,32 @@ bunx zmarketplace audit pi-marketplace
 bunx zmarketplace install pi-marketplace
 ```
 
-Works without any agent. Same core, different interface.
-
 ## Architecture
 
 ```
 src/
 ├── index.ts              pi/omp extension (registerCommand)
 ├── cli.ts                standalone CLI (bunx zmarketplace)
-├── opencode.ts           opencode plugin entry
+├── opencode.ts           opencode plugin (experimental)
 ├── core/
-│   ├── types.ts          unified package model + ecosystem keywords
+│   ├── types.ts          unified model + ecosystem keywords
 │   ├── search.ts         cross-registry search + dedup + ranking
 │   ├── detail.ts         npm metadata + README fetch
 │   ├── audit.ts          2-layer security scanner
 │   ├── install.ts        agent detection + command dispatch
-│   ├── cache.ts          results cache for ID reference
-│   └── tui.ts            icons, formatting, arg parser, help text
+│   ├── installed.ts      installed packages detector
+│   ├── cache.ts          results cache
+│   └── tui.ts            icons, formatting, help
 └── registries/
-    ├── npm.ts            npm registry (parallel per-keyword queries)
+    ├── npm.ts            npm (parallel per-keyword)
     ├── claude.ts         Claude marketplace JSON
-    ├── gemini.ts         Gemini CLI extensions registry
-    └── mcp.ts            Official MCP registry
+    ├── gemini.ts         Gemini CLI extensions
+    ├── mcp.ts            Official MCP registry
+    ├── smithery.ts       Smithery MCP servers
+    └── github.ts         GitHub topics search
 ```
 
-## Compatibility
-
-| Agent | Status | How |
-|---|---|---|
-| pi | ✅ Works | `pi install npm:zmarketplace` |
-| omp | ✅ Works | `omp plugin install npm:zmarketplace` |
-| OpenCode | ✅ Plugin entry | `opencode plugin zmarketplace` |
-| Claude Code | ✅ CLI | `bunx zmarketplace search "mcp"` |
-| Gemini CLI | ✅ CLI | `bunx zmarketplace search "mcp"` |
-| Codex | ✅ CLI | `bunx zmarketplace search "mcp"` |
-
-Zero runtime dependencies. TypeScript with Bun. No Bun-specific APIs (works on pi's jiti/Node loader).
+Zero runtime dependencies. Works on pi (jiti/Node) and omp (Bun). No Bun-specific APIs.
 
 ## Support
 
