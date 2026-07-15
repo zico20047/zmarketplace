@@ -1,9 +1,9 @@
 /**
- * Installed packages detector — scans pi and omp plugin directories
- * to show ✓ next to already-installed packages.
+ * Installed packages detector — checks pi and omp for user-installed plugins.
+ * Only checks explicit plugin installs, NOT dependency node_modules.
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -15,9 +15,9 @@ export interface InstalledPackage {
 
 let cache: InstalledPackage[] | null = null;
 let cacheTime = 0;
-const CACHE_TTL = 10_000; // 10 seconds
+const CACHE_TTL = 10_000;
 
-/** Scan pi and omp for installed packages. Cached for 10s. */
+/** Get user-installed packages from pi and omp (not dependencies). */
 export function getInstalledPackages(): InstalledPackage[] {
   const now = Date.now();
   if (cache && now - cacheTime < CACHE_TTL) return cache;
@@ -25,7 +25,7 @@ export function getInstalledPackages(): InstalledPackage[] {
   const results: InstalledPackage[] = [];
   const home = homedir();
 
-  // Scan omp plugins lock file
+  // omp plugins — from lock file (only explicitly enabled plugins)
   const ompLock = join(home, ".omp", "plugins", "omp-plugins.lock.json");
   try {
     if (existsSync(ompLock)) {
@@ -38,56 +38,38 @@ export function getInstalledPackages(): InstalledPackage[] {
     }
   } catch { /* ignore */ }
 
-  // Scan pi packages (npm-installed)
-  const piNpmDir = join(home, ".pi", "agent", "npm", "node_modules");
-  try {
-    if (existsSync(piNpmDir)) {
-      for (const dir of readdirSync(piNpmDir)) {
-        if (dir.startsWith(".")) continue;
-        if (dir.startsWith("@")) {
-          // Scoped package — read subdirectories
-          try {
-            for (const sub of readdirSync(join(piNpmDir, dir))) {
-              results.push({ name: `${dir}/${sub}`, source: "pi" });
-            }
-          } catch { /* ignore */ }
-        } else {
-          results.push({ name: dir, source: "pi" });
-        }
-      }
-    }
-  } catch { /* ignore */ }
-
-  // Scan pi packages from settings.json
+  // pi packages — from settings.json packages array (NOT node_modules scan)
   const piSettings = join(home, ".pi", "agent", "settings.json");
   try {
     if (existsSync(piSettings)) {
-      const data = JSON.parse(readFileSync(piSettings, "utf8")) as { packages?: string[] };
+      const data = JSON.parse(readFileSync(piSettings, "utf8")) as { packages?: string[]; extensions?: string[] };
       for (const pkg of data.packages ?? []) {
-        const name = pkg.replace(/^npm:/, "").replace(/^git:.*\//, "").replace(/@.*$/, "");
-        if (name) results.push({ name, source: "pi" });
+        // Format: "npm:@scope/name@version" or "npm:name" or "git:..."
+        const cleaned = pkg.replace(/^npm:/, "").replace(/^git:.*\//, "").replace(/@[^@]*$/, "");
+        if (cleaned) results.push({ name: cleaned, source: "pi" });
       }
     }
   } catch { /* ignore */ }
 
-  cache = results;
+  // Deduplicate (keep first = prefer omp with version info)
+  const seen = new Set<string>();
+  const deduped = results.filter(r => {
+    if (seen.has(r.name)) return false;
+    seen.add(r.name);
+    return true;
+  });
+
+  cache = deduped;
   cacheTime = now;
-  return results;
+  return deduped;
 }
 
-/** Check if a package name is installed. */
+/** Check if a package name is installed (user plugin, not dependency). */
 export function isInstalled(name: string): boolean {
-  const installed = getInstalledPackages();
-  return installed.some(p => p.name === name || p.name === name.replace(/^@[^/]+\//, ""));
+  return getInstalledPackages().some(p => p.name === name || p.name === name.replace(/^@[^/]+\//, ""));
 }
 
 /** Get installed version of a package, or undefined. */
 export function getInstalledVersion(name: string): string | undefined {
-  const installed = getInstalledPackages();
-  return installed.find(p => p.name === name)?.version;
-}
-
-/** Get all installed packages that need updates. */
-export function getInstalledWithLatest(): InstalledPackage[] {
-  return getInstalledPackages();
+  return getInstalledPackages().find(p => p.name === name)?.version;
 }
