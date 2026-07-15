@@ -8,11 +8,13 @@ import { searchNpm, detectEcosystems } from "../registries/npm.ts";
 import { searchClaudeMarketplace } from "../registries/claude.ts";
 import { searchGeminiExtensions } from "../registries/gemini.ts";
 import { searchMcpRegistry } from "../registries/mcp.ts";
+import { searchSmithery } from "../registries/smithery.ts";
+import { searchGitHubTopics } from "../registries/github.ts";
 
 /** Determine which registries to query based on options. */
 function registriesForOptions(registry?: RegistrySource | "all"): RegistrySource[] {
   if (!registry || registry === "all") {
-    return ["npm", "claude-marketplace", "gemini-extensions", "mcp-registry"];
+    return ["npm", "claude-marketplace", "gemini-extensions", "mcp-registry", "smithery", "github"];
   }
   return [registry];
 }
@@ -81,6 +83,12 @@ export async function search(options: SearchOptions): Promise<PackageResult[]> {
   }
   if (registries.includes("mcp-registry")) {
     queries.push(searchMcpRegistry(options.query, limit));
+  }
+  if (registries.includes("smithery")) {
+    queries.push(searchSmithery(options.query, limit));
+  }
+  if (registries.includes("github")) {
+    queries.push(searchGitHubTopics(options.query, limit));
   }
 
   const settled = await Promise.allSettled(queries);

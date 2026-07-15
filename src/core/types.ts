@@ -9,7 +9,7 @@ export type Ecosystem = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex
 export type PackageType = "extension" | "skill" | "theme" | "prompt" | "plugin" | "mcp" | "unknown";
 
 /** Which registry a result came from. */
-export type RegistrySource = "npm" | "claude-marketplace" | "gemini-extensions" | "pi-dev" | "mcp-registry";
+export type RegistrySource = "npm" | "claude-marketplace" | "gemini-extensions" | "pi-dev" | "mcp-registry" | "smithery" | "github";
 
 /** A normalized search result — the common currency across all registries. */
 export interface PackageResult {

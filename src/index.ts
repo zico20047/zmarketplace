@@ -206,8 +206,36 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
   const choice = await ctx.ui.select(`Install ${pkg.name} — Risk: ${report.risk}`, cmds);
   if (!choice || choice === "↩ Cancel") return null;
   const command = cmdMap.get(choice);
-  if (command) ctx.ui.notify(`✅ Run:\n  ${command}`, "info");
-  return command ?? null;
+  if (!command) return null;
+
+  // Auto-install: confirm, then execute
+  const doAuto = await ctx.ui.confirm("Install now?", `Run: ${command}`);
+  if (!doAuto) {
+    ctx.ui.notify(`✅ Command:\n  ${command}`, "info");
+    return command;
+  }
+
+  ctx.ui.setStatus?.(`Installing ${pkg.name}...`);
+  try {
+    const result = await new Promise<{ ok: boolean; out: string }>((resolve) => {
+      const proc = spawn(command, { shell: true, stdio: ["ignore", "pipe", "pipe"] });
+      let out = "";
+      proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
+      proc.stderr?.on("data", (d: Buffer) => { out += d.toString(); });
+      proc.on("close", (code: number | null) => resolve({ ok: code === 0, out }));
+      proc.on("error", () => resolve({ ok: false, out: "Failed to start" }));
+    });
+
+    if (result.ok) {
+      ctx.ui.notify(`✅ Installed ${pkg.name}!\nRun /reload to activate.`, "info");
+    } else {
+      ctx.ui.notify(`❌ Install failed:\n${result.out.slice(0, 500)}`, "warning");
+      ctx.ui.notify(`Manual command:\n  ${command}`, "info");
+    }
+  } catch {
+    ctx.ui.notify(`Manual command:\n  ${command}`, "info");
+  }
+  return command;
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
