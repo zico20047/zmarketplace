@@ -1,119 +1,104 @@
 /**
  * OpenCode plugin entry point.
  *
- * OpenCode plugins are npm packages with `exports["./server"]` pointing here.
- * They export a Plugin function that returns hooks.
+ * OpenCode plugins export functions that return hooks.
+ * This plugin provides a `zmarketplace` tool the agent can call.
  *
- * Install in opencode:
- *   opencode plugin zmarketplace
+ * OpenCode does NOT support slash commands from plugins.
+ * For /zmarketplace, create a command file:
+ *   ~/.config/opencode/commands/zmarketplace.md
  *
- * Or add to opencode.json:
- *   { "plugin": ["zmarketplace"] }
+ * Install: add "zmarketplace" to opencode.json plugin array.
  */
 
 import { search } from "./core/search.ts";
 import { getDetail } from "./core/detail.ts";
 import { auditPackage } from "./core/audit.ts";
-import { installPackage } from "./core/install.ts";
 import type { SearchOptions } from "./core/types.ts";
 
-/**
- * Minimal OpenCode plugin type shape.
- * Not imported from @opencode-ai/plugin to keep zero deps.
- */
-interface OpenCodeToolContext {
+interface ToolContext {
   sessionID?: string;
   messageID?: string;
   agent?: string;
   directory?: string;
+  worktree?: string;
   ask?(message: string): Promise<string>;
 }
 
-interface OpenCodePluginParams {
-  project?: string;
-  serverUrl?: string;
-  // Bun shell `$`
-  $?: unknown;
+interface ToolDef {
+  description: string;
+  args: Record<string, unknown>;
+  execute(args: Record<string, unknown>, ctx: ToolContext): Promise<string>;
 }
 
-interface OpenCodeHooks {
-  "tool.definition"?: (tools: unknown[]) => unknown[];
+interface PluginCtx {
+  project?: unknown;
+  client?: unknown;
+  directory?: string;
+  worktree?: string;
 }
 
-type PluginFn = (params: OpenCodePluginParams) => Promise<OpenCodeHooks>;
-
-const ZMARKETPLACE_TOOL = {
-  type: "function" as const,
-  function: {
-    name: "zmarketplace",
-    description:
-      "Search, inspect, audit, and install packages across agent ecosystems. " +
-      "Actions: search, detail, audit, install.",
-    parameters: {
-      type: "object",
-      properties: {
-        action: { type: "string", enum: ["search", "detail", "audit", "install"] },
-        query: { type: "string" },
-        name: { type: "string" },
-        type: { type: "string", enum: ["extension", "skill", "theme", "prompt", "plugin", "mcp", "all"] },
-        ecosystem: { type: "string", enum: ["pi", "omp", "claude", "opencode", "gemini", "codex", "all"] },
-        limit: { type: "number" },
-        deepScan: { type: "boolean" },
-        skipAudit: { type: "boolean" },
-      },
-      required: ["action"],
+/** The zmarketplace tool definition. */
+const zmarketplaceTool: ToolDef = {
+  description:
+    "Search, inspect, audit, and install packages across agent ecosystems " +
+    "(pi, omp, claude code, opencode, gemini cli, codex). " +
+    "Actions: search, detail, audit. " +
+    "Sources: npm, Claude marketplace, Gemini extensions, MCP registry, Smithery, GitHub.",
+  args: {
+    action: { type: "string", description: "search, detail, or audit" },
+    query: { type: "string", description: "Search query (for search)" },
+    name: { type: "string", description: "Package name (for detail/audit)" },
+    ecosystem: {
+      type: "string",
+      description: "Filter: pi, claude, opencode, gemini, codex, npm, all",
     },
-    execute: async (args: Record<string, unknown>, _ctx: OpenCodeToolContext): Promise<string> => {
-      const action = args["action"] as string;
+    limit: { type: "number", description: "Max results (default 20)" },
+  },
 
-      if (action === "search") {
-        const opts: SearchOptions = {
-          query: (args["query"] as string) ?? "",
-          type: (args["type"] as SearchOptions["type"]) ?? "all",
-          ecosystem: (args["ecosystem"] as SearchOptions["ecosystem"]) ?? "all",
-          limit: (args["limit"] as number) ?? 20,
-        };
-        const results = await search(opts);
-        return results.length === 0
-          ? "No packages found."
-          : results.map(r => `${r.name} [${r.ecosystems.filter(e => e !== "unknown").join(",")}] — ${r.description}`).join("\n");
-      }
+  async execute(args: Record<string, unknown>): Promise<string> {
+    const action = args["action"] as string;
 
-      if (action === "detail") {
-        const name = args["name"] as string;
-        if (!name) return "Error: 'name' required for detail.";
-        const detail = await getDetail(name);
-        if (!detail) return `Package "${name}" not found.`;
-        return `${detail.name} v${detail.version}\n${detail.description}\nDeps: ${detail.dependencyCount}  Size: ${detail.size ? (detail.size / 1024).toFixed(1) + " KB" : "?"}\n${detail.npmUrl}`;
-      }
+    if (action === "search") {
+      const opts: SearchOptions = {
+        query: (args["query"] as string) ?? "",
+        ecosystem: (args["ecosystem"] as SearchOptions["ecosystem"]) ?? "all",
+        limit: (args["limit"] as number) ?? 20,
+      };
+      const results = await search(opts);
+      if (results.length === 0) return "No packages found.";
+      return results.map(r =>
+        `${r.name} [${r.ecosystems.filter(e => e !== "unknown").join(",")}] (${r.source})\n  ${r.description.slice(0, 100)}\n  Install: ${r.installCommand ?? "n/a"}`
+      ).join("\n\n");
+    }
 
-      if (action === "audit") {
-        const name = args["name"] as string;
-        if (!name) return "Error: 'name' required for audit.";
-        const report = await auditPackage(name, { deepScan: (args["deepScan"] as boolean) ?? true });
-        return report.summary + "\n" + (report.findings.map(f => `[${f.severity.toUpperCase()}] ${f.reason}`).join("\n") || "No findings.");
-      }
+    if (action === "detail") {
+      const name = args["name"] as string;
+      if (!name) return "Error: name required.";
+      const detail = await getDetail(name);
+      if (!detail) return `Package "${name}" not found.`;
+      return `${detail.name} v${detail.version}\n${detail.description}\nDeps: ${detail.dependencyCount}  Size: ${detail.size ? (detail.size / 1024).toFixed(1) + " KB" : "?"}\n${detail.npmUrl ?? ""}`;
+    }
 
-      if (action === "install") {
-        const name = args["name"] as string;
-        if (!name) return "Error: 'name' required for install.";
-        const result = await installPackage(name, { skipAudit: (args["skipAudit"] as boolean) ?? false });
-        return result.message;
-      }
+    if (action === "audit") {
+      const name = args["name"] as string;
+      if (!name) return "Error: name required.";
+      const report = await auditPackage(name, { deepScan: true });
+      return `${report.summary}\nFindings:\n${report.findings.map(f => `[${f.severity}] ${f.reason}`).join("\n") || "None"}`;
+    }
 
-      return `Unknown action: ${action}`;
-    },
+    return `Unknown action: ${action}`;
   },
 };
 
-const ZmarketplacePlugin: PluginFn = async (_params: OpenCodePluginParams) => {
+/** OpenCode plugin — provides zmarketplace as a tool the agent can call. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const ZmarketplacePlugin = async (_ctx: PluginCtx): Promise<{ tool: Record<string, ToolDef> }> => {
   return {
-    "tool.definition": (tools: unknown[]) => {
-      tools.push(ZMARKETPLACE_TOOL);
-      return tools;
+    tool: {
+      zmarketplace: zmarketplaceTool,
     },
   };
 };
 
 export default ZmarketplacePlugin;
-export { ZmarketplacePlugin };
