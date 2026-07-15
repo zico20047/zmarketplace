@@ -10,6 +10,9 @@ import { auditPackage } from "./core/audit.ts";
 import { cacheResults, resolveRef, cacheAudit } from "./core/cache.ts";
 import { formatResultOption, formatAuditReport, formatHelp, parseArgs } from "./core/tui.ts";
 import type { PackageResult } from "./core/types.ts";
+import { isInstalled, getInstalledVersion } from "./core/installed.ts";
+import { getInstalledPackages } from "./core/installed.ts";
+import { getNpmPackageMeta } from "./registries/npm.ts";
 import { spawn } from "node:child_process";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -58,8 +61,10 @@ async function browseResults(results: PackageResult[], ctx: Ctx): Promise<void> 
   while (true) {
     const pageEnd = Math.min(pageStart + PAGE_SIZE, results.length);
     const page = results.slice(pageStart, pageEnd);
-
-    const options: string[] = page.map((r, i) => formatResultOption(r, pageStart + i).label);
+    const options: string[] = page.map((r, i) => {
+      const label = formatResultOption(r, pageStart + i).label;
+      return isInstalled(r.name) ? `✓ ${label}` : label;
+    });
 
     if (pageStart > 0) {
       const ps = Math.max(0, pageStart - PAGE_SIZE) + 1;
@@ -206,14 +211,60 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────
-
 // Command handler — extracted so it can be registered at the right time.
+
+// ── Updates checker ────────────────────────────────────────────────────────
+
+async function doUpdates(ctx: Ctx): Promise<void> {
+  ctx.ui.setStatus?.("Checking installed packages for updates...");
+  const installed = getInstalledPackages();
+  if (installed.length === 0) { ctx.ui.notify("No installed packages found.", "info"); return; }
+
+  const lines: string[] = [];
+  let updateCount = 0;
+
+  for (const pkg of installed) {
+    const meta = await getNpmPackageMeta(pkg.name);
+    if (!meta) continue;
+    const latest = meta["dist-tags"]?.latest;
+    if (!latest) continue;
+
+    if (pkg.version && pkg.version !== latest) {
+      lines.push(`⬆ ${pkg.name}: ${pkg.version} → ${latest} [${pkg.source}]`);
+      updateCount++;
+    } else if (!pkg.version) {
+      lines.push(`? ${pkg.name}: latest is ${latest} [${pkg.source}]`);
+    } else {
+      lines.push(`✓ ${pkg.name}: ${pkg.version} [${pkg.source}]`);
+    }
+  }
+
+  if (lines.length === 0) { ctx.ui.notify("No packages to check.", "info"); return; }
+  lines.push("↩ Back");
+
+  const title = updateCount > 0
+    ? `${updateCount} update(s) available (${installed.length} packages)`
+    : `All ${installed.length} packages up to date`;
+  await ctx.ui.select(title, lines);
+}
+
+// ── Popular packages ───────────────────────────────────────────────────────
+
+async function doPopular(ctx: Ctx): Promise<void> {
+  ctx.ui.setStatus?.("Finding popular packages...");
+  const results = await search({ query: "", limit: 25, type: "all", ecosystem: "all" });
+  if (results.length === 0) { ctx.ui.notify("No packages found.", "info"); return; }
+  ctx.ui.notify(`Found ${results.length} popular packages.`, "info");
+  await browseResults(results, ctx);
+}
 const commandDef = {
   description: "Search, audit, and install packages across agent ecosystems",
   handler: async (rawArgs: string, ctx: Ctx) => {
     const args = parseArgs(rawArgs.trim().split(/\s+/).filter(Boolean));
     switch (args.subcommand) {
       case "help": { ctx.ui.notify(formatHelp(), "info"); break; }
+      case "updates": { await doUpdates(ctx); break; }
+      case "popular": { await doPopular(ctx); break; }
       case "audit":
       case "a": {
         const ref = args.positional[0];
