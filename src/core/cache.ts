@@ -49,5 +49,12 @@ export function cacheAudit(name: string, report: AuditReport): void {
 }
 
 export function getCachedAudit(name: string): AuditReport | undefined {
-  return auditCache.get(name.toLowerCase());
+  const key = name.toLowerCase();
+  const entry = auditCache.get(key);
+  if (entry) {
+    // Promote to most-recently-used (LRU eviction)
+    auditCache.delete(key);
+    auditCache.set(key, entry);
+  }
+  return entry;
 }

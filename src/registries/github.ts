@@ -41,6 +41,13 @@ export async function searchGitHubTopics(query: string, limit = 25): Promise<Pac
       signal: AbortSignal.timeout(10000),
       headers: { "Accept": "application/vnd.github+json" },
     });
+    if (resp.status === 403 || resp.status === 429) {
+      const reset = resp.headers.get("x-ratelimit-reset");
+      const remaining = resp.headers.get("x-ratelimit-remaining");
+      const resetAt = reset ? new Date(parseInt(reset, 10) * 1000).toISOString() : "unknown";
+      console.warn(`GitHub API rate limited (${remaining ?? "?"} requests remaining, resets ${resetAt})`);
+      return [];
+    }
     if (!resp.ok) return [];
     const data = await resp.json() as GitHubResponse;
 

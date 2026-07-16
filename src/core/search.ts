@@ -35,11 +35,15 @@ function deduplicate(results: PackageResult[]): PackageResult[] {
     if (!existing) {
       byName.set(key, r);
     } else {
-      // Merge: union ecosystems, keep richer source
+      // Merge: union ecosystems, prefer npm, else keep first source
+      const mergedSource = existing.source === "npm" ? existing.source
+        : r.source === "npm" ? r.source
+        : existing.source; // keep first when neither is npm
       byName.set(key, {
         ...existing,
         ecosystems: [...new Set([...existing.ecosystems, ...r.ecosystems])],
-        source: existing.source === "npm" ? existing.source : r.source,
+        source: mergedSource,
+        downloads: Math.max(existing.downloads ?? 0, r.downloads ?? 0),
       });
     }
   }

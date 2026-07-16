@@ -151,20 +151,19 @@ export async function auditPackage(
       if (tarballUrl) {
         const resp = await fetch(tarballUrl, { signal: AbortSignal.timeout(30000) });
         if (resp.ok) {
-          const contentLength = parseInt(resp.headers.get("content-length") ?? "0", 10);
-          if (contentLength > 50 * 1024 * 1024) {
+          const tarball = new Uint8Array(await resp.arrayBuffer());
+          if (tarball.length > 50 * 1024 * 1024) {
             return {
               packageName,
               version: latestVersion,
               risk: "moderate" as const,
               metadataFindings: [],
               sourceFindings: [],
-              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Package too large to scan (${(contentLength / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
+              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Package too large to scan (${(tarball.length / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
               deepScanned: false,
               summary: "Source scan skipped — package exceeds 50MB limit.",
             };
           }
-          const tarball = new Uint8Array(await resp.arrayBuffer());
           const files = extractTextFilesFromTar(tarball);
           sourceFindings = files.flatMap(({ name, content }) => scanSource(content, name));
         }
@@ -208,11 +207,12 @@ export async function auditPackage(
  * but we do a pure-JS fallback to avoid loading heavy deps for large tarballs.
  * Extracts only text files (.ts/.js/.mjs/.cjs/.tsx/.jsx).
  */
-function extractTextFilesFromTar(tarball: Uint8Array): Array<{ name: string; content: string }> {
+export function extractTextFilesFromTar(tarball: Uint8Array): Array<{ name: string; content: string }> {
   const results: Array<{ name: string; content: string }> = [];
   const decoder = new TextDecoder("utf-8", { fatal: false });
 
   let offset = 0;
+  let longName = "";
   while (offset + 512 <= tarball.length) {
     // Read header block (512 bytes)
     const header = tarball.subarray(offset, offset + 512);
@@ -220,8 +220,9 @@ function extractTextFilesFromTar(tarball: Uint8Array): Array<{ name: string; con
     // Check for end-of-archive (two zero blocks)
     if (header.every(b => b === 0)) break;
 
-    // Parse name (offset 0, 100 bytes)
-    const name = decoder.decode(header.subarray(0, 100)).replace(/\0/g, "").trim();
+    // Parse name (offset 0, 100 bytes) — prefer GNU long name if set
+    const decodedName = decoder.decode(header.subarray(0, 100)).replace(/\0/g, "").trim();
+    const name = longName || decodedName;
 
     // Parse size (offset 124, 12 bytes, octal)
     const sizeStr = decoder.decode(header.subarray(124, 136)).replace(/\0/g, "").trim();
@@ -229,21 +230,36 @@ function extractTextFilesFromTar(tarball: Uint8Array): Array<{ name: string; con
     if (isNaN(size) || size < 0) {
       // Skip corrupt header, advance by one 512-byte block
       offset += 512;
+      longName = "";
       continue;
     }
 
-    // Parse type flag (offset 156, 1 byte) — '0' or '\0' = regular file
+    // Parse type flag (offset 156, 1 byte)
     const typeFlag = String.fromCharCode(header[156] ?? 0);
 
     offset += 512;
 
-    if ((typeFlag === "0" || typeFlag === "\0") && size > 0) {
+    // GNU long filename extension: type 'L' — payload is the real filename
+    if (typeFlag === "L") {
+      const nameSize = Math.min(size, Math.max(0, tarball.length - offset));
+      longName = decoder.decode(tarball.subarray(offset, offset + nameSize)).replace(/\0/g, "").trim();
+      offset += Math.ceil(size / 512) * 512;
+      continue; // next header carries the real type; its name field is ignored
+    }
+
+    // Consume the long name for this entry, then reset it
+    const entryName = name;
+    longName = "";
+
+    // POSIX regular file: '0', '\0' (old format), or ' ' (space, POSIX ustar)
+    if ((typeFlag === "0" || typeFlag === "\0" || typeFlag === " ") && size > 0) {
       // Check if it's a scanable file
-      const ext = name.substring(name.lastIndexOf("."));
+      const ext = entryName.substring(entryName.lastIndexOf("."));
       if (SCANABLE_EXTENSIONS.has(ext)) {
-        const fileContent = tarball.subarray(offset, offset + size);
+        const safeSize = Math.min(size, Math.max(0, tarball.length - offset));
+        const fileContent = tarball.subarray(offset, offset + safeSize);
         results.push({
-          name,
+          name: entryName,
           content: decoder.decode(fileContent),
         });
       }

@@ -2,7 +2,7 @@
  * Persistent search history — saves searches to ~/.zmarketplace/history.json.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -40,7 +40,9 @@ function saveHistory(entries: HistoryEntry[]): void {
         }
       } catch { /* file is corrupt, will be overwritten */ }
     }
-    writeFileSync(HISTORY_FILE, JSON.stringify(entries.slice(0, MAX_ENTRIES), null, 2));
+    const tmp = HISTORY_FILE + ".tmp";
+    writeFileSync(tmp, JSON.stringify(entries.slice(0, MAX_ENTRIES), null, 2));
+    renameSync(tmp, HISTORY_FILE);
   } catch { /* best effort */ }
 }
 
