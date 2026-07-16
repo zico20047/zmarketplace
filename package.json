@@ -39,7 +39,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun run test/full-test.ts"
+    "test": "bun run test/full-test.ts",
+    "test:unit": "bun run test/unit/cache.test.ts && bun run test/unit/history.test.ts && bun run test/unit/installed.test.ts && bun run test/unit/tar.test.ts"
   },
   "devDependencies": {
     "typescript": "^5",
