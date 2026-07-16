@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Typecheck
+        run: bun x tsc --noEmit
+
+      - name: Tests
+        run: bun run test/full-test.ts
+
+      - name: CLI smoke test
+        run: |
+          bun run src/cli.ts search "mcp" --limit=3 || true
+          bun run src/cli.ts detail pi-marketplace || true
