@@ -32,6 +32,7 @@ Then `/reload` and type `/zmarketplace`.
 ```
 /zmarketplace                     Interactive search prompt
 /zmarketplace search <query>      Search all registries
+/zmarketplace browse --type=<t>   Browse all packages of a type
 /zmarketplace popular             Browse popular packages
 /zmarketplace updates             Check installed for updates
 /zmarketplace detail <name>       Show package details + README
@@ -75,8 +76,9 @@ Searches **6 registries in parallel**:
 | Filter | Values |
 |---|---|
 | `--eco` | pi, claude, opencode, gemini, codex, npm |
-| `--type` | extension, skill, theme, prompt, plugin, mcp |
+| `--type` | extension, skill, theme, prompt, plugin, mcp, hook, command, agent, context, lsp, formatter |
 | `--limit` | 25, 50, 150, All (paged at 50/page) |
+| `--json` | Machine-readable JSON output |
 
 ## Detail View
 

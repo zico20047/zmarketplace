@@ -9,7 +9,7 @@ import { getDetail } from "./core/detail.ts";
 import { auditPackage } from "./core/audit.ts";
 import { cacheResults, resolveRef, cacheAudit } from "./core/cache.ts";
 import { formatResultOption, formatAuditReport, formatHelp, parseArgs } from "./core/tui.ts";
-import type { PackageResult } from "./core/types.ts";
+import type { PackageResult, SearchOptions } from "./core/types.ts";
 import { isInstalled, getInstalledVersion } from "./core/installed.ts";
 import { getInstalledPackages } from "./core/installed.ts";
 import { getNpmPackageMeta } from "./registries/npm.ts";
@@ -48,12 +48,20 @@ function extractUrl(line: string, repoBase?: string): string | null {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 
-async function doSearch(query: string, ctx: Ctx, limit = 50): Promise<void> {
+async function doSearch(query: string, ctx: Ctx, limit = 50, flags: Record<string, string> = {}): Promise<void> {
   ctx.ui.setStatus?.("Searching...");
-  const results = await search({ query, limit, type: "all", ecosystem: "all" });
+  const type = (flags["type"] as SearchOptions["type"]) ?? "all";
+  const ecosystem = (flags["eco"] as SearchOptions["ecosystem"]) ?? "all";
+  const effectiveLimit = parseInt(flags["limit"] ?? String(limit), 10) || limit;
+  const results = await search({ query, limit: effectiveLimit, type, ecosystem });
   cacheResults(results, query);
   recordSearch(query, results);
   if (results.length === 0) { ctx.ui.notify("No packages found.", "warning"); return; }
+  // --json: emit machine-readable output instead of the interactive browser
+  if (flags["json"]) {
+    ctx.ui.notify(JSON.stringify(results, null, 2), "info");
+    return;
+  }
   ctx.ui.notify(`Found ${results.length} packages.`, "info");
   await browseResults(results, ctx);
 }
@@ -109,6 +117,7 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
     `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
     detail.description || "",
   ];
+  if (isInstalled(pkg.name)) lines.push("✓ Installed");
   if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
   if (repoBase) lines.push(`🔗 ${repoBase}`);
 
@@ -353,15 +362,28 @@ const commandDef = {
       case "search":
       case "s":
       case "": {
+        const flags = args.flags;
         let query = args.positional.join(" ").trim();
-        let limit = 50;
+        let limit = parseInt(flags["limit"] ?? "50", 10) || 50;
         if (!query && ctx.hasUI) {
           const limitChoice = await ctx.ui.select("Results limit (50 per page)", ["25", "50", "150", "All (paged)"]);
           limit = limitChoice?.startsWith("All") ? 999999 : Math.max(1, parseInt(limitChoice ?? "50", 10) || 50);
           query = (await ctx.ui.input("Search packages", "Type search query...")) ?? "";
           if (!query) return;
         }
-        await doSearch(query, ctx, limit);
+        await doSearch(query, ctx, limit, flags);
+        break;
+      }
+      case "browse":
+      case "b": {
+        const flags = args.flags;
+        const type = (flags["type"] as SearchOptions["type"]) ?? "plugin";
+        ctx.ui.setStatus?.(`Browsing ${type} packages...`);
+        const results = await search({ query: type, limit: 50, type, ecosystem: "all" });
+        if (results.length === 0) { ctx.ui.notify(`No ${type} packages found.`, "warning"); break; }
+        cacheResults(results, type);
+        ctx.ui.notify(`Found ${results.length} ${type} packages.`, "info");
+        await browseResults(results, ctx);
         break;
       }
       case "history":

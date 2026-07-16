@@ -10,11 +10,12 @@ import { searchGeminiExtensions } from "../registries/gemini.ts";
 import { searchMcpRegistry } from "../registries/mcp.ts";
 import { searchSmithery } from "../registries/smithery.ts";
 import { searchGitHubTopics } from "../registries/github.ts";
+import { searchPiDev } from "../registries/pi-dev.ts";
 
 /** Determine which registries to query based on options. */
 function registriesForOptions(registry?: RegistrySource | "all"): RegistrySource[] {
   if (!registry || registry === "all") {
-    return ["npm", "claude-marketplace", "gemini-extensions", "mcp-registry", "smithery", "github"];
+    return ["npm", "claude-marketplace", "gemini-extensions", "mcp-registry", "smithery", "github", "pi-dev"];
   }
   return [registry];
 }
@@ -93,6 +94,9 @@ export async function search(options: SearchOptions): Promise<PackageResult[]> {
   }
   if (registries.includes("github")) {
     queries.push(searchGitHubTopics(options.query, limit));
+  }
+  if (registries.includes("pi-dev")) {
+    queries.push(searchPiDev(options.query, limit));
   }
 
   const settled = await Promise.allSettled(queries);

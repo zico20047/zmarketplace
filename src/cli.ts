@@ -18,6 +18,7 @@ import { installPackage } from "./core/install.ts";
 import { formatResultOption, formatDetailCard, formatAuditReport, formatCompareCard, formatHelp, parseArgs } from "./core/tui.ts";
 import type { SearchOptions } from "./core/types.ts";
 import { getHistory, clearHistory, recordSearch } from "./core/history.ts";
+import { isInstalled } from "./core/installed.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -84,7 +85,7 @@ async function main(): Promise<void> {
         break;
       }
 
-      console.log(formatDetailCard(detail));
+      console.log(formatDetailCard(detail, { installed: isInstalled(detail.name) }));
       break;
     }
 

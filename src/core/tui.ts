@@ -74,7 +74,7 @@ export function buildSelectOptions(results: PackageResult[]): Array<{ label: str
 }
 
 /** Format a detailed package card. */
-export function formatDetailCard(detail: PackageDetail): string {
+export function formatDetailCard(detail: PackageDetail, options?: { installed?: boolean }): string {
   const icon = TYPE_ICON[detail.type] ?? "📦";
   const eco = detail.ecosystems.filter(e => e !== "unknown").map(e => ECO_LABEL[e]).join(", ") || "npm";
   const lines: string[] = [
@@ -83,6 +83,7 @@ export function formatDetailCard(detail: PackageDetail): string {
   ];
 
   if (detail.description) lines.push(`  ${detail.description}`);
+  if (options?.installed) lines.push(`  ✓ Installed`);
   lines.push("");
   if (detail.license) lines.push(`  License:      ${detail.license}`);
   if (detail.dependencyCount !== undefined) lines.push(`  Dependencies: ${detail.dependencyCount}`);
@@ -169,6 +170,7 @@ export function formatHelp(): string {
     "  /zmarketplace                     Interactive search prompt",
     "  /zmarketplace search <query>      Search across all registries",
     "  /zmarketplace popular             Browse popular packages",
+    "  /zmarketplace browse --type=<t>  Browse all packages of a type",
     "  /zmarketplace updates             Check installed packages for updates",
     "  /zmarketplace detail <id|name>    Show package details",
     "  /zmarketplace audit <id|name>     Run security audit",
@@ -177,7 +179,7 @@ export function formatHelp(): string {
     "  /zmarketplace compare <a> <b>    Compare two packages side-by-side",
     "",
     "Options for 'search':",
-  "  --type=<type>        Filter: extension, skill, theme, prompt, plugin, mcp, hook, command, agent, context, lsp, formatter",
+    "  --type=<type>        Filter: extension, skill, theme, prompt, plugin, mcp, hook, command, agent, context, lsp, formatter",
     "  --eco=<ecosystem>    Filter: pi, claude, opencode, gemini, codex, npm",
     "  --limit=<n>          Max results (default 20)",
     "  --json                Output machine-readable JSON",
