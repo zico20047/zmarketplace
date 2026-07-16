@@ -45,7 +45,7 @@ export function getInstalledPackages(): InstalledPackage[] {
       const data = JSON.parse(readFileSync(piSettings, "utf8")) as { packages?: string[]; extensions?: string[] };
       for (const pkg of data.packages ?? []) {
         // Format: "npm:@scope/name@version" or "npm:name" or "git:..."
-        const cleaned = pkg.replace(/^npm:/, "").replace(/^git:.*\//, "").replace(/@[^@]*$/, "");
+        const cleaned = pkg.replace(/^npm:/, "").replace(/^git:.*\//, "").replace(/@\d+\.\d+\.\d+[\w.\-]*$/, "");
         if (cleaned) results.push({ name: cleaned, source: "pi" });
       }
     }
@@ -66,7 +66,13 @@ export function getInstalledPackages(): InstalledPackage[] {
 
 /** Check if a package name is installed (user plugin, not dependency). */
 export function isInstalled(name: string): boolean {
-  return getInstalledPackages().some(p => p.name === name || p.name === name.replace(/^@[^/]+\//, ""));
+  const packages = getInstalledPackages();
+  const normalized = name.replace(/^@[^/]+\//, "");
+  return packages.some(p =>
+    p.name === name ||
+    p.name === normalized ||
+    p.name.endsWith("/" + normalized)
+  );
 }
 
 /** Get installed version of a package, or undefined. */

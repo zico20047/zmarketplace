@@ -47,10 +47,11 @@ export const ZmarketplacePlugin = async (ctx: PluginCtx) => {
         async execute(args: { action?: string; query?: string }): Promise<string> {
           const action = args.action ?? "search";
           const query = args.query ?? "";
+          const safeQuery = query.replace(/[^a-zA-Z0-9 _\-]/g, "_");
 
-          if (action === "detail") return runCmd($, `detail ${query}`);
-          if (action === "audit") return runCmd($, `audit ${query}`);
-          return runCmd($, `search "${query}" --limit=10`);
+          if (action === "detail") return runCmd($, `detail ${safeQuery}`);
+          if (action === "audit") return runCmd($, `audit ${safeQuery}`);
+          return runCmd($, `search "${safeQuery}" --limit=10`);
         },
       },
     },

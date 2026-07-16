@@ -15,8 +15,9 @@ import { search } from "./core/search.ts";
 import { getDetail } from "./core/detail.ts";
 import { auditPackage } from "./core/audit.ts";
 import { installPackage } from "./core/install.ts";
-import { formatResultOption, formatDetailCard, formatAuditReport, formatHelp, parseArgs } from "./core/tui.ts";
+import { formatResultOption, formatDetailCard, formatAuditReport, formatCompareCard, formatHelp, parseArgs } from "./core/tui.ts";
 import type { SearchOptions } from "./core/types.ts";
+import { getHistory, clearHistory, recordSearch } from "./core/history.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -36,11 +37,16 @@ async function main(): Promise<void> {
         query,
         type: (parsed.flags["type"] as SearchOptions["type"]) ?? "all",
         ecosystem: (parsed.flags["eco"] as SearchOptions["ecosystem"]) ?? "all",
-        limit: parseInt(parsed.flags["limit"] ?? "20", 10),
+        limit: Math.max(1, parseInt(parsed.flags["limit"] ?? "20", 10) || 20),
       };
 
       console.log(`Searching for "${query || "all"}"...`);
       const results = await search(opts);
+      recordSearch(query, results);
+      if (parsed.flags.json) {
+        console.log(JSON.stringify(results, null, 2));
+        break;
+      }
 
       if (results.length === 0) {
         console.log("No packages found.");
@@ -73,6 +79,11 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
+      if (parsed.flags.json) {
+        console.log(JSON.stringify(detail, null, 2));
+        break;
+      }
+
       console.log(formatDetailCard(detail));
       break;
     }
@@ -87,6 +98,10 @@ async function main(): Promise<void> {
 
       console.log(`Auditing ${name} (downloading source)...`);
       const report = await auditPackage(name, { deepScan: parsed.flags["deepScan"] !== "false" });
+      if (parsed.flags.json) {
+        console.log(JSON.stringify(report, null, 2));
+        break;
+      }
       console.log("\n" + formatAuditReport(report));
       break;
     }
@@ -110,11 +125,50 @@ async function main(): Promise<void> {
       }
 
       const result = await installPackage(name, { skipAudit: true });
+      if (parsed.flags.json) {
+        console.log(JSON.stringify({ name, command: result.command }, null, 2));
+        break;
+      }
       console.log(`\n✅ Ready to install:`);
       console.log(`  ${result.command}`);
       break;
     }
 
+    case "compare":
+    case "c": {
+      const name1 = parsed.positional[0];
+      const name2 = parsed.positional[1];
+      if (!name1 || !name2) {
+        console.error("Error: two package names required. Usage: zmarketplace compare <pkg1> <pkg2>");
+        process.exit(1);
+      }
+
+      console.log(`Fetching details for ${name1} and ${name2}...`);
+      const [detail1, detail2] = await Promise.all([getDetail(name1), getDetail(name2)]);
+
+      if (!detail1) { console.error(`Package "${name1}" not found.`); process.exit(1); }
+      if (!detail2) { console.error(`Package "${name2}" not found.`); process.exit(1); }
+
+      console.log("\n" + formatCompareCard(detail1, detail2));
+      break;
+    }
+
+    case "history":
+    case "h": {
+      const entries = getHistory();
+      if (entries.length === 0) {
+        console.log("No search history.");
+        break;
+      }
+      console.log(`\n${entries.length} search(es):\n`);
+      for (let i = 0; i < Math.min(entries.length, 30); i++) {
+        const e = entries[i];
+        const time = e.timestamp.slice(0, 16).replace("T", " ");
+        const top = e.topResults.slice(0, 3).map(r => r.name).join(", ");
+        console.log(`  [${i + 1}] "${e.query}" — ${e.resultCount} results (${time})${top ? ` ▸ ${top}` : ""}`);
+      }
+      break;
+    }
     default:
       console.error(`Unknown subcommand: ${parsed.subcommand}\n`);
       console.log(formatHelp());

@@ -69,6 +69,12 @@ export function detectType(keywords?: string[], name?: string): PackageType {
   if (kws.has("prompt") || kws.has("prompts") || kws.has("prompt-template")) return "prompt";
   if (kws.has("skill") || kws.has("agent-skill")) return "skill";
   if (kws.has("mcp") || kws.has("mcp-server") || n.includes("mcp")) return "mcp";
+  if (kws.has("hook") || kws.has("hooks") || kws.has("lifecycle-hook")) return "hook";
+  if (kws.has("command") || kws.has("commands") || kws.has("custom-command") || kws.has("slash-command")) return "command";
+  if (kws.has("agent") || kws.has("agents") || kws.has("subagent") || kws.has("custom-agent")) return "agent";
+  if (kws.has("context") || kws.has("context-file") || kws.has("gemini-md") || kws.has("claude-md") || kws.has("agents-md")) return "context";
+  if (kws.has("lsp") || kws.has("lsp-server") || kws.has("language-server")) return "lsp";
+  if (kws.has("formatter") || kws.has("code-formatter") || kws.has("prettier") || kws.has("biome")) return "formatter";
   if (kws.has("extension") || kws.has("plugin")) return "extension";
   // Heuristic: pi packages are usually extensions, claude/cc packages are plugins
   if (kws.has("pi-package") || kws.has("opencode")) return "extension";
@@ -107,7 +113,7 @@ export async function searchNpm(
   }
 
   // npm search doesn't handle complex OR queries well — query per keyword in parallel.
-  const perKeyword = Math.max(5, Math.ceil(limit / keywords.size));
+  const perKeyword = keywords.size > 0 ? Math.max(5, Math.ceil(limit / keywords.size)) : limit;
   const q = query.trim();
 
   const fetches = [...keywords].map(async kw => {

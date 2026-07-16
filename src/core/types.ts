@@ -6,7 +6,7 @@
 export type Ecosystem = "pi" | "omp" | "claude" | "opencode" | "gemini" | "codex" | "npm" | "universal" | "unknown";
 
 /** Package resource type. */
-export type PackageType = "extension" | "skill" | "theme" | "prompt" | "plugin" | "mcp" | "unknown";
+export type PackageType = "extension" | "skill" | "theme" | "prompt" | "plugin" | "mcp" | "hook" | "command" | "agent" | "context" | "lsp" | "formatter" | "unknown";
 
 /** Which registry a result came from. */
 export type RegistrySource = "npm" | "claude-marketplace" | "gemini-extensions" | "pi-dev" | "mcp-registry" | "smithery" | "github";

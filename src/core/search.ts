@@ -111,6 +111,9 @@ export async function search(options: SearchOptions): Promise<PackageResult[]> {
 
   // Rank: exact name > name prefix > name contains > description match
   results.sort((a, b) => scoreResult(b, options.query) - scoreResult(a, options.query));
+  if (!options.query?.trim()) {
+    results.sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0));
+  }
 
   return results.slice(0, limit);
 }

@@ -34,7 +34,7 @@ export async function searchGitHubTopics(query: string, limit = 25): Promise<Pac
   const q = query.trim();
   const topicQuery = AGENT_TOPICS.map(t => `topic:${t}`).join(" ");
   const searchText = q ? `${topicQuery} ${q}` : topicQuery;
-  const url = `${GITHUB_SEARCH}?q=${encodeURIComponent(searchText)}&sort=stars&order=desc&per_page=${limit}`;
+  const url = `${GITHUB_SEARCH}?q=${encodeURIComponent(searchText)}&sort=stars&order=desc&per_page=${Math.min(limit, 100)}`;
 
   try {
     const resp = await fetch(url, {

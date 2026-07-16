@@ -37,9 +37,15 @@ export function resolveRef(ref: string): PackageResult | undefined {
 
 /** Cache for audit reports by package name. */
 const auditCache = new Map<string, AuditReport>();
+const MAX_AUDIT_CACHE = 150;
 
 export function cacheAudit(name: string, report: AuditReport): void {
   auditCache.set(name.toLowerCase(), report);
+  // Evict oldest if over limit
+  if (auditCache.size > MAX_AUDIT_CACHE) {
+    const oldest = auditCache.keys().next().value;
+    if (oldest) auditCache.delete(oldest);
+  }
 }
 
 export function getCachedAudit(name: string): AuditReport | undefined {

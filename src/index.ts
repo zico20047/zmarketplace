@@ -14,6 +14,7 @@ import { isInstalled, getInstalledVersion } from "./core/installed.ts";
 import { getInstalledPackages } from "./core/installed.ts";
 import { getNpmPackageMeta } from "./registries/npm.ts";
 import { spawn } from "node:child_process";
+import { recordSearch, getHistory, clearHistory } from "./core/history.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,8 @@ interface Ctx { cwd: string; hasUI: boolean; ui: UI }
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function openUrl(url: string): void {
+  // Only allow http/https URLs
+  if (!/^https?:\/\//i.test(url)) return;
   const cmd = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   spawn(cmd, args, { stdio: "ignore", detached: true }).unref();
@@ -49,6 +52,7 @@ async function doSearch(query: string, ctx: Ctx, limit = 50): Promise<void> {
   ctx.ui.setStatus?.("Searching...");
   const results = await search({ query, limit, type: "all", ecosystem: "all" });
   cacheResults(results, query);
+  recordSearch(query, results);
   if (results.length === 0) { ctx.ui.notify("No packages found.", "warning"); return; }
   ctx.ui.notify(`Found ${results.length} packages.`, "info");
   await browseResults(results, ctx);
@@ -156,6 +160,12 @@ async function doAudit(name: string, ctx: Ctx): Promise<void> {
 // ── Install (audit FIRST, then options) ────────────────────────────────────
 
 async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
+  // Validate package name — only allow safe characters
+  if (!/^[a-z0-9._@/\-]+$/i.test(pkg.name)) {
+    ctx.ui.notify(`Invalid package name: ${pkg.name}`, "warning");
+    return null;
+  }
+
   // Audit first
   ctx.ui.setStatus?.(`Auditing ${pkg.name} before install...`);
   const report = await auditPackage(pkg.name, { deepScan: true });
@@ -208,14 +218,17 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
   const command = cmdMap.get(choice);
   if (!command) return null;
 
-  // Auto-install: confirm, then execute
+  // Auto-install: confirm, then execute with clear feedback
   const doAuto = await ctx.ui.confirm("Install now?", `Run: ${command}`);
   if (!doAuto) {
-    ctx.ui.notify(`✅ Command:\n  ${command}`, "info");
+    ctx.ui.notify(`Command (run manually):\n  ${command}`, "info");
     return command;
   }
 
-  ctx.ui.setStatus?.(`Installing ${pkg.name}...`);
+  // Show clear progress — user sees exactly what's happening
+  ctx.ui.notify(`⏳ Installing...\n  ${command}`, "info");
+  ctx.ui.setStatus?.(`Running: ${command}`);
+
   try {
     const result = await new Promise<{ ok: boolean; out: string }>((resolve) => {
       const proc = spawn(command, { shell: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -223,17 +236,27 @@ async function doInstall(pkg: PackageResult, ctx: Ctx): Promise<string | null> {
       proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
       proc.stderr?.on("data", (d: Buffer) => { out += d.toString(); });
       proc.on("close", (code: number | null) => resolve({ ok: code === 0, out }));
-      proc.on("error", () => resolve({ ok: false, out: "Failed to start" }));
+      proc.on("error", () => resolve({ ok: false, out: "Failed to start command" }));
     });
 
+    ctx.ui.setStatus?.("");
+
     if (result.ok) {
-      ctx.ui.notify(`✅ Installed ${pkg.name}!\nRun /reload to activate.`, "info");
+      ctx.ui.notify(
+        `✅ Successfully installed ${pkg.name}\n` +
+        `Command: ${command}\n` +
+        `Run /reload to activate the new package.`, "info");
     } else {
-      ctx.ui.notify(`❌ Install failed:\n${result.out.slice(0, 500)}`, "warning");
-      ctx.ui.notify(`Manual command:\n  ${command}`, "info");
+      ctx.ui.notify(
+        `❌ Install failed for ${pkg.name}\n` +
+        `Command: ${command}\n` +
+        `Output: ${result.out.slice(0, 300)}`, "warning");
+      ctx.ui.notify(`Manual: ${command}`, "info");
     }
-  } catch {
-    ctx.ui.notify(`Manual command:\n  ${command}`, "info");
+  } catch (err) {
+    ctx.ui.setStatus?.("");
+    const msg = err instanceof Error ? err.message : String(err);
+    ctx.ui.notify(`❌ Error: ${msg}\nManual: ${command}`, "warning");
   }
   return command;
 }
@@ -285,6 +308,33 @@ async function doPopular(ctx: Ctx): Promise<void> {
   ctx.ui.notify(`Found ${results.length} popular packages.`, "info");
   await browseResults(results, ctx);
 }
+// ── Search history ───────────────────────────────────────────────────────
+
+async function doHistory(ctx: Ctx): Promise<void> {
+  const entries = getHistory();
+  if (entries.length === 0) { ctx.ui.notify("No search history.", "info"); return; }
+
+  const options: string[] = entries.slice(0, 30).map((e, i) => {
+    const time = e.timestamp.slice(0, 16).replace("T", " ");
+    const top = e.topResults.slice(0, 3).map(r => r.name).join(", ");
+    return `[${i + 1}] "${e.query}" — ${e.resultCount} results (${time}) ${top ? `▸ ${top}` : ""}`;
+  });
+  options.push("\uD83D\uDDD1 Clear history");
+  options.push("\u21A9 Back");
+
+  const selected = await ctx.ui.select(`History: ${entries.length} searches`, options);
+  if (!selected) return;
+  if (selected.includes("Clear history")) {
+    clearHistory();
+    ctx.ui.notify("History cleared.", "info");
+    return;
+  }
+  const match = selected.match(/^\[(\d+)\]/);
+  if (match) {
+    const entry = entries[parseInt(match[1], 10) - 1];
+    if (entry) await doSearch(entry.query, ctx);
+  }
+}
 const commandDef = {
   description: "Search, audit, and install packages across agent ecosystems",
   handler: async (rawArgs: string, ctx: Ctx) => {
@@ -307,13 +357,15 @@ const commandDef = {
         let limit = 50;
         if (!query && ctx.hasUI) {
           const limitChoice = await ctx.ui.select("Results limit (50 per page)", ["25", "50", "150", "All (paged)"]);
-          limit = limitChoice?.startsWith("All") ? 999999 : parseInt(limitChoice ?? "50", 10);
+          limit = limitChoice?.startsWith("All") ? 999999 : Math.max(1, parseInt(limitChoice ?? "50", 10) || 50);
           query = (await ctx.ui.input("Search packages", "Type search query...")) ?? "";
           if (!query) return;
         }
         await doSearch(query, ctx, limit);
         break;
       }
+      case "history":
+      case "h": { await doHistory(ctx); break; }
       default: { await doSearch(rawArgs.trim(), ctx); }
     }
   },

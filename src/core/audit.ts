@@ -151,6 +151,19 @@ export async function auditPackage(
       if (tarballUrl) {
         const resp = await fetch(tarballUrl, { signal: AbortSignal.timeout(30000) });
         if (resp.ok) {
+          const contentLength = parseInt(resp.headers.get("content-length") ?? "0", 10);
+          if (contentLength > 50 * 1024 * 1024) {
+            return {
+              packageName,
+              version: latestVersion,
+              risk: "moderate" as const,
+              metadataFindings: [],
+              sourceFindings: [],
+              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Package too large to scan (${(contentLength / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
+              deepScanned: false,
+              summary: "Source scan skipped — package exceeds 50MB limit.",
+            };
+          }
           const tarball = new Uint8Array(await resp.arrayBuffer());
           const files = extractTextFilesFromTar(tarball);
           sourceFindings = files.flatMap(({ name, content }) => scanSource(content, name));
@@ -213,6 +226,11 @@ function extractTextFilesFromTar(tarball: Uint8Array): Array<{ name: string; con
     // Parse size (offset 124, 12 bytes, octal)
     const sizeStr = decoder.decode(header.subarray(124, 136)).replace(/\0/g, "").trim();
     const size = sizeStr ? parseInt(sizeStr, 8) : 0;
+    if (isNaN(size) || size < 0) {
+      // Skip corrupt header, advance by one 512-byte block
+      offset += 512;
+      continue;
+    }
 
     // Parse type flag (offset 156, 1 byte) — '0' or '\0' = regular file
     const typeFlag = String.fromCharCode(header[156] ?? 0);

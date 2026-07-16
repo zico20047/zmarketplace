@@ -11,7 +11,8 @@ import { getNpmPackageMeta } from "../registries/npm.ts";
 export function detectAgent(): InstallTarget {
   const env = globalThis.process?.env ?? {};
   // Pi/omp sets these
-  if (env["PI_VERSION"] || env["OMP_VERSION"]) return "pi";
+  if (env["OMP_VERSION"]) return "omp";
+  if (env["PI_VERSION"]) return "pi";
   // Claude Code sets this
   if (env["CLAUDE_CODE"] || env["CLAUDE"]) return "claude";
   // OpenCode
@@ -32,7 +33,7 @@ function buildCommand(packageName: string, target: InstallTarget): string {
     case "opencode": return `opencode plugin ${packageName}`;
     case "gemini": return `gemini extension install npm:${packageName}`;
     case "npm":
-    case "auto":
+    case "auto": // 'auto' resolves to npm as fallback — actual resolution happens in resolveAutoTarget
     default: return `npm install ${packageName}`;
   }
 }

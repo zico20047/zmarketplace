@@ -14,6 +14,12 @@ const TYPE_ICON: Record<PackageType, string> = {
   prompt: "📝",
   plugin: "📦",
   mcp: "🔌",
+  hook: "🪝",
+  command: "⚡",
+  agent: "🤖",
+  context: "📄",
+  lsp: "🔍",
+  formatter: "✨",
   unknown: "❓",
 };
 
@@ -92,6 +98,41 @@ export function formatDetailCard(detail: PackageDetail): string {
   return lines.join("\n");
 }
 
+/** Format a side-by-side comparison of two packages. */
+export function formatCompareCard(a: PackageDetail, b: PackageDetail): string {
+  const rows: [string, string, string][] = [
+    ["", a.name, b.name],
+    ["Version", a.version ?? "?", b.version ?? "?"],
+    ["License", a.license ?? "?", b.license ?? "?"],
+    ["Deps", String(a.dependencyCount ?? "?"), String(b.dependencyCount ?? "?")],
+    ["Size", a.size ? `${(a.size / 1024).toFixed(1)} KB` : "?", b.size ? `${(b.size / 1024).toFixed(1)} KB` : "?"],
+    ["Files", String(a.fileCount ?? "?"), String(b.fileCount ?? "?")],
+    ["Published", a.publishedAt?.slice(0, 10) ?? "?", b.publishedAt?.slice(0, 10) ?? "?"],
+    ["Ecosystems", a.ecosystems.filter(e => e !== "unknown").join(", ") || "npm", b.ecosystems.filter(e => e !== "unknown").join(", ") || "npm"],
+  ];
+
+  const colW = 28;
+  const labelW = 14;
+  const lines: string[] = [];
+
+  lines.push(`━━━ Compare: ${a.name} vs ${b.name} ━━━`);
+  lines.push("");
+
+  for (const [label, va, vb] of rows) {
+    const left = (label ? `${label}: ` : "") + va;
+    lines.push(`  ${left.padEnd(labelW + colW)}  ${vb}`);
+  }
+
+  lines.push("");
+  if (a.description) lines.push(`  ${a.name}: ${a.description.slice(0, 60)}`);
+  if (b.description) lines.push(`  ${b.name}: ${b.description.slice(0, 60)}`);
+  lines.push("");
+  lines.push(`  ${a.name}: ${a.npmUrl ?? "?"}`);
+  lines.push(`  ${b.name}: ${b.npmUrl ?? "?"}`);
+
+  return lines.join("\n");
+}
+
 /** Format an audit report for display. */
 export function formatAuditReport(report: AuditReport): string {
   const riskIcon = RISK_ICON[report.risk];
@@ -132,11 +173,14 @@ export function formatHelp(): string {
     "  /zmarketplace detail <id|name>    Show package details",
     "  /zmarketplace audit <id|name>     Run security audit",
     "  /zmarketplace install <id|name>   Audit + install a package",
+    "  /zmarketplace history             Show search history",
+    "  /zmarketplace compare <a> <b>    Compare two packages side-by-side",
     "",
     "Options for 'search':",
-    "  --type=<type>        Filter: extension, skill, theme, prompt, plugin, mcp",
+  "  --type=<type>        Filter: extension, skill, theme, prompt, plugin, mcp, hook, command, agent, context, lsp, formatter",
     "  --eco=<ecosystem>    Filter: pi, claude, opencode, gemini, codex, npm",
     "  --limit=<n>          Max results (default 20)",
+    "  --json                Output machine-readable JSON",
     "",
     "Registries: npm + Claude + Gemini + MCP + Smithery + GitHub",
     "Examples:",
