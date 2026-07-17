@@ -88,19 +88,19 @@ Searches **7 registries in parallel** (6 live + pi-dev pending):
 ## Detail View
 
 ```
- learnship — Details
+ zmarketplace — Details
 
  ❯ ⬇ Install (audit first)
    🔒 Audit only
    ↩ Back to results
-   📦 learnship v2.4.0 — MIT · 0 deps · 1296KB
+   📦 zmarketplace v0.0.0 — MIT · 0 deps · 1000KB
    Learn as you build. Build with intent.
-   🔗 https://www.npmjs.com/package/learnship
-   🔗 https://github.com/FavioVazquez/learnship
+   🔗 https://www.npmjs.com/package/zmarketplace
+   🔗 https://github.com/zico20047/zmarketplace
    ━━━ README ━━━
-   # learnship
+   # zmarketplace
    ...40 lines...
-   ✅ Run: pi install npm:learnship
+   ✅ Run: pi install npm:zmarketplace
 ```
 
 - ✓ marks packages you already have installed
@@ -153,6 +153,8 @@ Scans installed packages, compares with latest on npm:
 | Socket.dev | Optional supply-chain score when `SOCKET_API_KEY` is set |
 
 Severity: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
+
+Up to **20 findings** are shown per audit. How many you can read at once depends on terminal zoom — ≈15 lines at 100%, ≈20 at 75%. For the full list use `--json`, or verify on socket.dev.
 
 ## CLI
 
