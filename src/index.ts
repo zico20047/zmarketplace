@@ -67,7 +67,7 @@ async function doSearch(query: string, ctx: Ctx, limit = 50, flags: Record<strin
   await browseResults(results, ctx);
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 15;
 
 async function browseResults(results: PackageResult[], ctx: Ctx): Promise<void> {
   let pageStart = 0;
@@ -111,36 +111,54 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
   if (!detail) { ctx.ui.notify(`"${pkg.name}" not found.`, "warning"); return; }
 
   const repoBase = detail.repository?.replace(/^git\+/, "").replace(/\.git$/, "");
-  const lines: string[] = [
-    "⬇ Install (audit first)",
-    "🔒 Audit only",
-    "↩ Back to results",
-    `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
-    detail.description || "",
-  ];
-  if (isInstalled(pkg.name)) lines.push("✓ Installed");
-  if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
-  if (repoBase) lines.push(`🔗 ${repoBase}`);
 
-  if (detail.readme) {
-    lines.push("━━━ README (40 lines — enter on 🔗 to open) ━━━");
-    const rl = detail.readme
-      .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 $1\n")
-      .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 → $2")
-      .replace(/<[^>]+>/g, "")
-      .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
-      .slice(0, 40);
-    lines.push(...rl);
-    lines.push("...(see npm for full README)");
-  }
+  // Pre-process README into clean, non-empty lines once; paging slices this array.
+  const readmeLines: string[] = detail.readme
+    ? detail.readme
+        .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 $1\n")
+        .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 → $2")
+        .replace(/<[^>]+>/g, "")
+        .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
+    : [];
+
+  const README_PAGE = 14;
+  let readmeOffset = 0;
+  let installCmd: string | null = null;
+
+  // Rebuilt each iteration so the current README page + last install result stay current.
+  const buildLines = (): string[] => {
+    const lines: string[] = [
+      "⬇ Install (audit first)",
+      "🔒 Audit only",
+      "↩ Back to results",
+      `📦 ${detail.name} v${detail.version ?? "?"} — ${detail.license ?? "?"} · ${detail.dependencyCount ?? "?"} deps · ${detail.size ? (detail.size / 1024).toFixed(0) + "KB" : "?"}`,
+      detail.description || "",
+    ];
+    if (isInstalled(pkg.name)) lines.push("✓ Installed");
+    if (installCmd) lines.push(`✅ Run: ${installCmd}`);
+    if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
+    if (repoBase) lines.push(`🔗 ${repoBase}`);
+
+    if (readmeLines.length > 0) {
+      const end = Math.min(readmeOffset + README_PAGE, readmeLines.length);
+      lines.push(`━━━ README (${readmeOffset + 1}-${end} of ${readmeLines.length}) ━━━`);
+      lines.push(...readmeLines.slice(readmeOffset, end));
+      if (readmeOffset + README_PAGE < readmeLines.length) lines.push("⬇ Next README page");
+      if (readmeOffset > 0) lines.push("⬆ Prev README page");
+    }
+    return lines;
+  };
+
   while (true) {
-    const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
+    const selected = await ctx.ui.select(`${detail.name} — Details`, buildLines());
     if (!selected) continue;
     if (selected.includes("Back to results")) return;
+    if (selected.includes("Next README")) { readmeOffset += README_PAGE; continue; }
+    if (selected.includes("Prev README")) { readmeOffset = Math.max(0, readmeOffset - README_PAGE); continue; }
     if (selected.includes("Install")) {
       const cmd = await doInstall(pkg, ctx);
-      if (cmd) lines.push(`✅ Run: ${cmd}`);  // show command at BOTTOM
+      if (cmd) installCmd = cmd;
       continue;
     }
     if (selected.includes("Audit only")) { await doAudit(pkg.name, ctx); continue; }
