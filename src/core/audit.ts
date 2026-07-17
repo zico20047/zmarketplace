@@ -36,6 +36,7 @@ const LOW_PATTERNS: Array<[RegExp, string]> = [
   [/https?:\/\/[^'")\s]+/g, "Hardcoded URL"],
   [/fs\.chmod(Sync)?\s*\(/g, "File permission change"],
   [/fs\.chown(Sync)?\s*\(/g, "File ownership change"],
+  [/\b(readFile|writeFile|readFileSync|writeFileSync|readdir|readdirSync|createReadStream|createWriteStream|appendFile|copyFile)\s*\(/g, "Filesystem read/write access"],
 ];
 
 const ALL_PATTERN_LAYERS: Array<[AuditSeverity, Array<[RegExp, string]>]> = [
