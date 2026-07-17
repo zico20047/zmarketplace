@@ -33,5 +33,7 @@ jobs:
       - run: bun install
       - name: Extract version from tag
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+      - name: Configure npm auth
+        run: npm config set '//registry.npmjs.org/:_authToken' "${{ secrets.NPM_TOKEN }}"
       - name: Publish
         run: npm publish --access public --provenance
