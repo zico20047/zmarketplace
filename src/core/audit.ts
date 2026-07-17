@@ -6,6 +6,7 @@
 
 import type { AuditReport, AuditFinding, AuditSeverity } from "./types.ts";
 import { getNpmPackageMeta } from "../registries/npm.ts";
+import { gunzipSync } from "node:zlib";
 
 // Danger patterns ordered by severity.
 const CRITICAL_PATTERNS: Array<[RegExp, string]> = [
@@ -58,13 +59,19 @@ const SCANABLE_EXTENSIONS = new Set([".ts", ".js", ".mjs", ".cjs", ".tsx", ".jsx
 function scanSource(content: string, fileName: string): AuditFinding[] {
   const lines = content.split("\n");
   const findings: AuditFinding[] = [];
+  const seen = new Set<string>();
 
   for (const [severity, patterns] of ALL_PATTERN_LAYERS) {
     for (const [regex, reason] of patterns) {
       regex.lastIndex = 0;
       let match: RegExpExecArray | null;
       while ((match = regex.exec(content)) !== null) {
-        // Find line number for the match offset
+        // One finding per distinct matched text per file, so a minified file with
+        // 50 `process.env` reads reports it once, not 50 times.
+        const key = `${severity}|${match[0]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
         const offset = match.index;
         const before = content.slice(0, offset);
         const lineNum = before.split("\n").length;
@@ -93,6 +100,40 @@ function computeRisk(findings: AuditFinding[]): AuditReport["risk"] {
   if (score >= 15) return "moderate";
   if (score >= 5) return "low";
   return "safe";
+}
+
+/**
+ * Layer 3: Socket.dev supply-chain reputation (optional).
+ * Enabled when SOCKET_API_KEY is set; otherwise returns []. Best-effort —
+ * never throws and never blocks the audit on a network/key failure.
+ */
+async function getSocketFindings(packageName: string, version: string | undefined): Promise<AuditFinding[]> {
+  const key = process.env.SOCKET_API_KEY;
+  if (!key || !version) return [];
+  try {
+    const url = `https://api.socket.dev/v0/npm/${encodeURIComponent(packageName)}/${version}/score`;
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) return [];
+    const score = await resp.json() as { supplyChainRisk?: { score?: number }; depscore?: number };
+    const findings: AuditFinding[] = [];
+    const scr = score.supplyChainRisk?.score;
+    if (typeof scr === "number") {
+      // Socket scores: higher is safer. A low supply-chain score is a strong risk signal
+      // that catches dependency/behavioral issues the regex source scan cannot.
+      const pct = Math.round(scr * 100);
+      findings.push({
+        severity: pct < 25 ? "high" : pct < 50 ? "medium" : "info",
+        pattern: "socket supply-chain score",
+        reason: `Socket.dev supply-chain risk ${pct}/100${pct < 50 ? " (below average — investigate on socket.dev)" : ""}`,
+      });
+    }
+    return findings;
+  } catch {
+    return [];
+  }
 }
 
 /** Run a full audit on a package. */
@@ -140,6 +181,17 @@ export async function auditPackage(
         reason: "No license declared — usage rights unclear",
       });
     }
+    // Lifecycle scripts run automatically on install — a top supply-chain attack vector
+    const scripts = (versionData as { scripts?: Record<string, string> } | undefined)?.scripts ?? {};
+    const lifecycle = ["preinstall", "install", "postinstall", "prepublish", "preuninstall", "postuninstall", "prepare"]
+      .filter(s => scripts[s]);
+    if (lifecycle.length > 0) {
+      metadataFindings.push({
+        severity: "medium",
+        pattern: `install scripts (${lifecycle.join(", ")})`,
+        reason: "Lifecycle scripts execute on install — review before trusting",
+      });
+    }
   }
 
   // Layer 2: Source scan
@@ -151,7 +203,27 @@ export async function auditPackage(
       if (tarballUrl) {
         const resp = await fetch(tarballUrl, { signal: AbortSignal.timeout(30000) });
         if (resp.ok) {
-          const tarball = new Uint8Array(await resp.arrayBuffer());
+          const raw = new Uint8Array(await resp.arrayBuffer());
+          // Guard the compressed payload BEFORE any decompression (gzip-bomb protection)
+          if (raw.length > 50 * 1024 * 1024) {
+            return {
+              packageName,
+              version: latestVersion,
+              risk: "moderate" as const,
+              metadataFindings: [],
+              sourceFindings: [],
+              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Package too large to scan (${(raw.length / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
+              deepScanned: false,
+              summary: "Source scan skipped — package exceeds 50MB limit.",
+            };
+          }
+          // npm tarballs ship as gzip (.tgz). Bun/Node do NOT auto-decompress them
+          // (no Content-Encoding header), so without this the parser reads compressed
+          // bytes, extracts zero files, and reports a false "SAFE".
+          let tarball = raw;
+          if (raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b) {
+            tarball = gunzipSync(raw);
+          }
           if (tarball.length > 50 * 1024 * 1024) {
             return {
               packageName,
@@ -159,9 +231,9 @@ export async function auditPackage(
               risk: "moderate" as const,
               metadataFindings: [],
               sourceFindings: [],
-              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Package too large to scan (${(tarball.length / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
+              findings: [{ severity: "medium" as const, pattern: "too-large", reason: `Decompressed package too large (${(tarball.length / 1024 / 1024).toFixed(1)}MB > 50MB limit)`, file: "tarball" }],
               deepScanned: false,
-              summary: "Source scan skipped — package exceeds 50MB limit.",
+              summary: "Source scan skipped — decompressed package exceeds 50MB limit.",
             };
           }
           const files = extractTextFilesFromTar(tarball);
@@ -176,6 +248,8 @@ export async function auditPackage(
       });
     }
   }
+  // Layer 3: Socket.dev reputation (optional, requires SOCKET_API_KEY env var)
+  sourceFindings.push(...await getSocketFindings(packageName, latestVersion));
 
   const allFindings = [...metadataFindings, ...sourceFindings];
   const risk = computeRisk(allFindings);
@@ -198,7 +272,7 @@ export async function auditPackage(
     sourceFindings,
     findings: allFindings,
     deepScanned: deepScan,
-    summary: `Risk: ${risk.toUpperCase()}. Findings: ${summaryParts.join(", ") || "none"}. ${deepScan ? "Source scanned." : "Metadata only."}`,
+    summary: `Risk: ${risk.toUpperCase()}. Findings: ${summaryParts.join(", ") || "none"}. ${deepScan ? "Source scanned" : "Metadata only"}. Heuristic only — does not analyze dependencies or reputation. Verify: https://socket.dev/npm/package/${packageName}`,
   };
 }
 

@@ -157,6 +157,9 @@ export function formatAuditReport(report: AuditReport): string {
       lines.push(`   ... and ${report.findings.length - 20} more`);
     }
   }
+  lines.push("");
+  lines.push(`   ⚠ Heuristic scan — does not analyze dependencies or reputation.`);
+  lines.push(`     Verify on socket.dev: https://socket.dev/npm/package/${report.packageName}`);
 
   return lines.join("\n");
 }

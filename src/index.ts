@@ -159,8 +159,9 @@ async function doAudit(name: string, ctx: Ctx): Promise<void> {
     `${report.risk === "safe" ? "✅" : report.risk === "low" ? "🟢" : report.risk === "moderate" ? "🟡" : "🔴"} Risk: ${report.risk.toUpperCase()}`,
     `Deep scan: ${report.deepScanned ? "yes" : "no"}`,
     "",
-    report.findings.length === 0 ? "No issues found." : `${report.findings.length} finding(s):`,
+    report.findings.length === 0 ? "No heuristic findings (does NOT mean safe)." : `${report.findings.length} finding(s):`,
     ...report.findings.slice(0, 20).map(f => `[${f.severity.toUpperCase()}] ${f.reason}${f.file ? ` (${f.file})` : ""}`),
+    `⚠ Heuristic only — verify: https://socket.dev/npm/package/${name}`,
     "↩ Back",
   ];
   await ctx.ui.select(`Audit: ${name}`, lines);
