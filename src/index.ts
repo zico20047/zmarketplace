@@ -147,6 +147,7 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
       if (readmeOffset + README_PAGE < readmeLines.length) lines.push("⬇ Next README page");
       if (readmeOffset > 0) lines.push("⬆ Prev README page");
     }
+    if (detail.npmUrl) lines.push(`📄 Open full README — ${detail.npmUrl}`);
     return lines;
   };
 
