@@ -18,8 +18,8 @@ const CRITICAL_PATTERNS: Array<[RegExp, string]> = [
 ];
 
 const HIGH_PATTERNS: Array<[RegExp, string]> = [
-  [/\beval\s*\(/g, "Dynamic code execution via eval()"],
-  [/\bnew\s+Function\s*\(/g, "Dynamic code execution via Function()"],
+  [/\beval\s*\(/g, "Dynamic code execution (eval)"],
+  [/\bnew\s+Function\s*\(/g, "Dynamic code execution (Function)"],
   [/execSync\s*\(/g, "Synchronous command execution"],
   [/execFile(Sync)?\s*\(/g, "Child process execution"],
   [/\bspawn(Sync)?\s*\(/g, "Process spawning"],
@@ -28,12 +28,12 @@ const HIGH_PATTERNS: Array<[RegExp, string]> = [
 const MEDIUM_PATTERNS: Array<[RegExp, string]> = [
   [/process\.env\b/g, "Environment variable access"],
   [/child_process/g, "Child process module import"],
-  [/\bfetch\s*\(/g, "HTTP fetch call"],
-  [/\bXMLHttpRequest\b/g, "HTTP request"],
-  [/https?:\/\/[^'")\s]+/g, "Hardcoded URL"],
 ];
 
 const LOW_PATTERNS: Array<[RegExp, string]> = [
+  [/\bfetch\s*\(/g, "HTTP fetch call"],
+  [/\bXMLHttpRequest\b/g, "HTTP request"],
+  [/https?:\/\/[^'")\s]+/g, "Hardcoded URL"],
   [/fs\.chmod(Sync)?\s*\(/g, "File permission change"],
   [/fs\.chown(Sync)?\s*\(/g, "File ownership change"],
 ];
@@ -237,7 +237,16 @@ export async function auditPackage(
             };
           }
           const files = extractTextFilesFromTar(tarball);
-          sourceFindings = files.flatMap(({ name, content }) => scanSource(content, name));
+          const rawFindings = files.flatMap(({ name, content }) => scanSource(content, name));
+          // Package-level dedup: one finding per distinct matched text (first occurrence wins),
+          // so fetch()/URLs across 20 files count once, not 20× — stops count-inflated criticals.
+          const seenPattern = new Set<string>();
+          sourceFindings = rawFindings.filter(f => {
+            const k = `${f.severity}|${f.pattern}`;
+            if (seenPattern.has(k)) return false;
+            seenPattern.add(k);
+            return true;
+          });
         }
       }
     } catch {
