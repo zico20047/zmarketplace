@@ -58,12 +58,19 @@ export function formatResultOption(result: PackageResult, index: number): { labe
     .filter(e => e !== "unknown")
     .map(e => ECO_LABEL[e])
     .join(",");
-  const desc = result.description.length > 70
-    ? result.description.slice(0, 67) + "..."
-    : result.description;
   const ver = result.version ? ` v${result.version}` : "";
+  const prefix = `${icon} [${index + 1}] ${result.name}${ver} (${eco}) — `;
+  // Fit each result on ONE terminal row: truncate the description to the available
+  // width so long descriptions don't wrap to a second line (a 2-line wrap halves how
+  // many packages are visible at normal zoom). -2 leaves room for the ✓ installed
+  // prefix the browser prepends and the picker's side margins.
+  const cols = (typeof process !== "undefined" && process.stdout?.columns) || 80;
+  const room = Math.max(8, cols - prefix.length - 2);
+  const desc = result.description.length > room
+    ? result.description.slice(0, Math.max(1, room - 1)) + "…"
+    : result.description;
   return {
-    label: `${icon} [${index + 1}] ${result.name}${ver} (${eco}) — ${desc}`,
+    label: prefix + desc,
     value: String(index),
   };
 }
