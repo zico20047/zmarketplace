@@ -154,8 +154,6 @@ Scans installed packages, compares with latest on npm:
 
 Severity: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
 
-Up to **20 findings** are shown per audit. How many you can read at once depends on terminal zoom — ≈15 lines at 100%, ≈20 at 75%. For the full list use `--json`, or verify on socket.dev.
-
 ## CLI
 
 ```bash
