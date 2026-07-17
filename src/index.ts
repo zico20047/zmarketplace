@@ -161,10 +161,15 @@ async function doAudit(name: string, ctx: Ctx): Promise<void> {
     "",
     report.findings.length === 0 ? "No heuristic findings (does NOT mean safe)." : `${report.findings.length} finding(s):`,
     ...report.findings.slice(0, 20).map(f => `[${f.severity.toUpperCase()}] ${f.reason}${f.file ? ` (${f.file})` : ""}`),
-    `⚠ Heuristic only — verify: https://socket.dev/npm/package/${name}`,
+    `🔗 Verify on socket.dev: https://socket.dev/npm/package/${name}`,
     "↩ Back",
   ];
-  await ctx.ui.select(`Audit: ${name}`, lines);
+  while (true) {
+    const selected = await ctx.ui.select(`Audit: ${name}`, lines);
+    if (!selected || selected.includes("↩ Back")) return;
+    const url = extractUrl(selected);
+    if (url) { openUrl(url); ctx.ui.notify("🌐 Opened socket.dev in browser", "info"); }
+  }
 }
 
 // ── Install (audit FIRST, then options) ────────────────────────────────────
