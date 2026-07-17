@@ -148,8 +148,9 @@ Scans installed packages, compares with latest on npm:
 
 | Layer | What |
 |---|---|
-| Metadata | Dependency count, file count, size, license |
-| Source scan | Downloads tarball, scans `.ts`/`.js` for `eval()`, `execSync()`, `rm -rf`, `child_process`, `process.env`, HTTP calls |
+| Metadata | Dependency count, file count, size, license, **install/lifecycle scripts** |
+| Source scan | Decompresses `.tgz`, scans `.ts`/`.js` for `eval()`, `execSync()`, `rm -rf`, `child_process`, `process.env`, HTTP calls |
+| Socket.dev | Optional supply-chain score when `SOCKET_API_KEY` is set |
 
 Severity: 🔴 critical · 🟠 high · 🟡 medium · 🟢 low
 
@@ -164,6 +165,27 @@ bunx zmarketplace browse --type=hook
 bunx zmarketplace search "mcp" --json --eco=pi
 ```
 
+## Troubleshooting & Debugging
+
+### Audit or install hangs
+The audit downloads + scans a package tarball; a very large package can take a while. If a command freezes, press **Esc** (kills an interactive command), **Ctrl+Break** (Windows), or close the terminal and resume with `pi --resume`.
+
+### Enabling pi debug output
+These aren't in `pi --help`, but the runtime reads them:
+
+| Env / flag | What it shows |
+|---|---|
+| `PI_DEBUG_STARTUP=1 pi` | Streams `[startup] phase:start/:done` to stderr — survives a hard hang; the last line names the stuck phase |
+| `PI_TIMING=full pi` | Module-load timing span tree (stderr) |
+| `pi --verbose` | Verbose startup (overrides `quietStartup`) |
+
+PowerShell: `$env:PI_DEBUG_STARTUP=1; pi` (PowerShell can't read `VAR=1 cmd` like bash).
+
+### zmarketplace not loading after install
+`/reload`, then check `pi list`. If both `npm:zmarketplace` and a local path are listed, remove one (`pi remove npm:zmarketplace`) to avoid a duplicate `/zmarketplace` command.
+
+Run `/hotkeys` inside pi to see all active keybindings.
+
 ## Architecture
 
 ```
@@ -175,7 +197,7 @@ src/
 │   ├── types.ts          unified model + ecosystem keywords
 │   ├── search.ts         cross-registry search + dedup + ranking
 │   ├── detail.ts         npm metadata + README fetch
-│   ├── audit.ts          2-layer security scanner
+│   ├── audit.ts          3-layer security scanner (metadata + source + socket)
 │   ├── install.ts        agent detection + command dispatch
 │   ├── installed.ts      installed packages detector
 │   ├── cache.ts          results cache
