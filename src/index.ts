@@ -46,6 +46,12 @@ function extractUrl(line: string, repoBase?: string): string | null {
   return null;
 }
 
+/** README preview line count, adapted to terminal height (≈15 lines at 100% zoom, ≈20 when zoomed out). */
+function readmePreviewLines(): number {
+  const rows = process.stdout?.rows ?? 0;
+  return rows >= 45 ? 20 : 15;
+}
+
 // ── Search ─────────────────────────────────────────────────────────────────
 
 async function doSearch(query: string, ctx: Ctx, limit = 50, flags: Record<string, string> = {}): Promise<void> {
@@ -121,15 +127,16 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
   if (detail.npmUrl) lines.push(`🔗 ${detail.npmUrl}`);
   if (repoBase) lines.push(`🔗 ${repoBase}`);
 
+  const previewLines = readmePreviewLines();
   if (detail.readme) {
-    lines.push("━━━ README (40 lines — enter on 🔗 to open) ━━━");
+    lines.push(`━━━ README (${previewLines} lines — enter on 🔗 to open) ━━━`);
     const rl = detail.readme
       .replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, "\n🖼 $1\n")
       .replace(/!\[.*?\]\(([^)]+)\)/g, (_m, p) => `\n🖼 ${repoBase ? repoBase + "/raw/main/" + p.replace(/^\.\//, "") : p}\n`)
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 → $2")
       .replace(/<[^>]+>/g, "")
       .split("\n").map(l => l.trimEnd()).filter(l => l.length > 0)
-      .slice(0, 40);
+      .slice(0, previewLines);
     lines.push(...rl);
     lines.push("...(see npm for full README)");
   }
