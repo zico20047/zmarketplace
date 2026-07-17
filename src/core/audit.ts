@@ -10,8 +10,8 @@ import { gunzipSync } from "node:zlib";
 
 // Danger patterns ordered by severity.
 const CRITICAL_PATTERNS: Array<[RegExp, string]> = [
-  [/rm\s+-rf/i, "Recursive forced deletion command"],
-  [/\brimraf\b/i, "Recursive directory deletion library"],
+  [/rm\s+-rf/gi, "Recursive forced deletion command"],
+  [/\brimraf\b/gi, "Recursive directory deletion library"],
   [/fs\.unlink(Sync)?\s*\(/g, "File deletion"],
   [/fs\.rmdir(Sync)?\s*\(/g, "Directory deletion"],
   [/fs\.rm(Sync)?\s*\(/g, "File/directory removal"],
@@ -58,9 +58,25 @@ const SCANABLE_EXTENSIONS = new Set([".ts", ".js", ".mjs", ".cjs", ".tsx", ".jsx
 
 /** Scan a source file string for dangerous patterns. */
 function scanSource(content: string, fileName: string): AuditFinding[] {
-  const lines = content.split("\n");
   const findings: AuditFinding[] = [];
   const seen = new Set<string>();
+
+  // Precompute each line's start offset ONCE (O(content.length)) so a match's line
+  // number is a binary search instead of a per-match slice+split. The old code did
+  // content.slice(0,offset).split("\n") per match — O(matches × filesize) — which
+  // hung CI for 46 min on a large minified bundle.
+  const lineStarts: number[] = [0];
+  for (let i = 0; i < content.length; i++) {
+    if (content.charCodeAt(i) === 10) lineStarts.push(i + 1);
+  }
+  const lineForOffset = (offset: number): number => {
+    let lo = 0, hi = lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      if (lineStarts[mid] <= offset) lo = mid; else hi = mid - 1;
+    }
+    return lo + 1; // 1-based
+  };
 
   for (const [severity, patterns] of ALL_PATTERN_LAYERS) {
     for (const [regex, reason] of patterns) {
@@ -73,17 +89,17 @@ function scanSource(content: string, fileName: string): AuditFinding[] {
         if (seen.has(key)) continue;
         seen.add(key);
 
-        const offset = match.index;
-        const before = content.slice(0, offset);
-        const lineNum = before.split("\n").length;
-        const lineText = lines[lineNum - 1]?.trim() ?? "";
+        // Windowed excerpt (O(window)) instead of trimming the whole line, which on a
+        // single multi-MB minified line was another per-match O(filesize) blowup.
+        const start = Math.max(0, match.index - 30);
+        const excerpt = content.slice(start, start + 200).trim();
 
         findings.push({
           severity,
           pattern: match[0],
           file: fileName,
-          line: lineNum,
-          excerpt: lineText.slice(0, 200),
+          line: lineForOffset(match.index),
+          excerpt,
           reason,
         });
       }
