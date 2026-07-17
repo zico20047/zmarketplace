@@ -46,6 +46,7 @@ function extractUrl(line: string, repoBase?: string): string | null {
   return null;
 }
 
+
 // ── Search ─────────────────────────────────────────────────────────────────
 
 async function doSearch(query: string, ctx: Ctx, limit = 50, flags: Record<string, string> = {}): Promise<void> {
@@ -133,7 +134,6 @@ async function packageDetail(pkg: PackageResult, ctx: Ctx): Promise<void> {
     lines.push(...rl);
     lines.push("...(see npm for full README)");
   }
-
   while (true) {
     const selected = await ctx.ui.select(`${detail.name} — Details`, lines);
     if (!selected) continue;
