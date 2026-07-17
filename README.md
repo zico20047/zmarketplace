@@ -1,5 +1,9 @@
 # zmarketplace
 
+[![npm version](https://img.shields.io/npm/v/zmarketplace)](https://www.npmjs.com/package/zmarketplace)
+[![GitHub](https://img.shields.io/badge/github-zico20047%2Fzmarketplace-black)](https://github.com/zico20047/zmarketplace)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Package marketplace search. One `/zmarketplace` command searches npm, marketplace, extensions, MCP registry, Smithery, and LSP,Skills and install.
 
 ## Demo

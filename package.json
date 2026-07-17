@@ -3,6 +3,14 @@
   "version": "0.7.8",
   "description": "Cross-agent marketplace search: find, audit, and install plugins/skills/themes/prompts across pi, omp, claude code, opencode, gemini cli, and codex",
   "license": "MIT",
+  "author": {
+    "name": "zico20047"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zico20047/zmarketplace.git"
+  },
+  "homepage": "https://github.com/zico20047/zmarketplace",
   "type": "module",
   "bin": {
     "zmarketplace": "./src/cli.ts"
