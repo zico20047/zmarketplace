@@ -186,6 +186,14 @@ PowerShell: `$env:PI_DEBUG_STARTUP=1; pi` (PowerShell can't read `VAR=1 cmd` lik
 
 Run `/hotkeys` inside pi to see all active keybindings.
 
+### README preview size (pi vs omp)
+pi renders the whole detail list (no scroll window), so the package detail view caps the README preview to ~15 lines (≈20 when zoomed out). omp's picker scrolls, so raise the cap there with `ZMP_README_LINES` to see more / the full README:
+
+```bash
+ZMP_README_LINES=40 pi          # bash
+$env:ZMP_README_LINES=40; pi    # PowerShell
+```
+
 ## Architecture
 
 ```

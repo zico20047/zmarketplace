@@ -46,8 +46,13 @@ function extractUrl(line: string, repoBase?: string): string | null {
   return null;
 }
 
-/** README preview line count, adapted to terminal height (≈15 lines at 100% zoom, ≈20 when zoomed out). */
+/** README preview line count.
+ *  The extension API can't tell pi (no scroll window) from omp (scrolls), so the
+ *  default is a safe adaptive cap for pi. omp users who scroll can raise it via
+ *  ZMP_README_LINES (e.g. 40 for a full scrollable preview). */
 function readmePreviewLines(): number {
+  const override = parseInt(process.env.ZMP_README_LINES ?? "", 10);
+  if (override > 0) return override;
   const rows = process.stdout?.rows ?? 0;
   return rows >= 45 ? 20 : 15;
 }
