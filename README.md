@@ -1,6 +1,10 @@
 # zmarketplace
 
-Cross-agent package marketplace search. One `/zmarketplace` command searches npm, Claude marketplace, Gemini extensions, MCP registry, Smithery, and GitHub — then browse, audit, and install.
+Package marketplace search. One `/zmarketplace` command searches npm, marketplace, extensions, MCP registry, Smithery, and LSP,Skills and install.
+
+## Demo
+
+![zmarketplace demo](assets/demo.gif)
 
 ## Status
 
@@ -54,7 +58,7 @@ Then `/reload` and type `/zmarketplace`.
 
 ## Search
 
-Searches **6 registries in parallel**:
+Searches **7 registries in parallel** (6 live + pi-dev pending):
 
 | Registry | Coverage |
 |---|---|
@@ -64,6 +68,7 @@ Searches **6 registries in parallel**:
 | MCP registry | registry.modelcontextprotocol.io (official) |
 | Smithery | api.smithery.ai (MCP servers) |
 | GitHub topics | `topic:claude-code`, `topic:mcp-server`, etc |
+| pi-dev | *(pending — no public registry URL yet)* |
 
 ### Filters
 
@@ -155,6 +160,8 @@ bunx zmarketplace search "mcp" --limit=5
 bunx zmarketplace detail pi-marketplace
 bunx zmarketplace audit pi-marketplace
 bunx zmarketplace install pi-marketplace
+bunx zmarketplace browse --type=hook
+bunx zmarketplace search "mcp" --json --eco=pi
 ```
 
 ## Architecture
@@ -172,6 +179,7 @@ src/
 │   ├── install.ts        agent detection + command dispatch
 │   ├── installed.ts      installed packages detector
 │   ├── cache.ts          results cache
+│   ├── history.ts        search history (persistent)
 │   └── tui.ts            icons, formatting, help
 └── registries/
     ├── npm.ts            npm (parallel per-keyword)
@@ -179,7 +187,8 @@ src/
     ├── gemini.ts         Gemini CLI extensions
     ├── mcp.ts            Official MCP registry
     ├── smithery.ts       Smithery MCP servers
-    └── github.ts         GitHub topics search
+    ├── github.ts         GitHub topics search
+    └── pi-dev.ts         pi-dev registry (stub)
 ```
 
 Zero runtime dependencies. Works on pi (jiti/Node) and omp (Bun). No Bun-specific APIs.
